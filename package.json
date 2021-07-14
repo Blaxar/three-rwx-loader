@@ -1,0 +1,37 @@
+{
+  "name": "three-rwx-loader",
+  "version": "0.2.0",
+  "description": "three.js RWX (AW) loader",
+  "type": "module",
+  "main": "src/RWXLoader.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "three": "^0.130.1"
+  },
+  "peerDependencies": {
+    "jszip": "^3.6.0",
+    "jszip-utils": "^0.1.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Blaxar/three-rwx-loader"
+  },
+  "keywords": [
+    "three.js",
+    "loader",
+    "3D",
+    "rwx",
+    "Active",
+    "Worlds",
+    "RenderWare",
+    "Script"
+  ],
+  "author": "Julien 'Blaxar' Bardagi <blaxar.waldarax@gmail.com>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/Blaxar/three-rwx-loader/issues"
+  },
+  "homepage": "https://github.com/Blaxar/three-rwx-loader#readme"
+}
