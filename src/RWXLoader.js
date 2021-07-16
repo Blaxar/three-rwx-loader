@@ -686,7 +686,7 @@ class RWXLoader extends Loader {
 	transformRegex = /^ *(transform)(( +[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)){16}).*$/i;
 	translateRegex = /^ *(translate)(( +[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)){3}).*$/i;
 	scaleRegex = /^ *(scale)(( +[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)){3}).*$/i;
-	rotateRegex = /^ *(rotate)(( +[-+]?[0-9]*){4})$/i;
+	rotateRegex = /^ *(rotate)(( +[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)){4})$/i;
 	surfaceRegex = /^ *(surface)(( +[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)){3}).*$/i;
 	ambientRegex = /^ *(ambient)( +[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)).*$/i;
 	diffuseRegex = /^ *(diffuse)( +[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)).*$/i;
@@ -1133,9 +1133,9 @@ class RWXLoader extends Loader {
 			if ( res != null ) {
 
 				let rprops = [];
-				res[ 2 ].match( this.integerRegex ).forEach( ( x ) => {
+				res[ 2 ].match( this.floatRegex ).forEach( ( x ) => {
 
-					rprops.push( parseInt( x ) );
+					rprops.push( parseFloat( x ) );
 
 				} );
 
@@ -1145,21 +1145,21 @@ class RWXLoader extends Loader {
 
 					if ( rprops[ 0 ] ) {
 
-						rotateM.makeRotationX( MathUtils.degToRad( rprops[ 3 ] ) );
+						rotateM.makeRotationX( MathUtils.degToRad( rprops[ 0 ] * rprops[ 3 ] ) );
 						ctx.currentTransform.multiply( rotateM );
 
 					}
 
 					if ( rprops[ 1 ] ) {
 
-						rotateM.makeRotationY( MathUtils.degToRad( rprops[ 3 ] ) );
+						rotateM.makeRotationY( MathUtils.degToRad( rprops[ 1 ] * rprops[ 3 ] ) );
 						ctx.currentTransform.multiply( rotateM );
 
 					}
 
 					if ( rprops[ 2 ] ) {
 
-						rotateM.makeRotationZ( MathUtils.degToRad( rprops[ 3 ] ) );
+						rotateM.makeRotationZ( MathUtils.degToRad( rprops[ 2 ] * rprops[ 3 ] ) );
 						ctx.currentTransform.multiply( rotateM );
 
 					}
