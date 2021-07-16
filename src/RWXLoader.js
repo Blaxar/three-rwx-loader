@@ -236,6 +236,7 @@ function makeThreeMaterial( rwxMaterial, folder, texExtension = "jpg", maskExten
 	materialDict[ 'opacity' ] = rwxMaterial.opacity;
 
 	let phongMat = new MeshPhongMaterial( materialDict );
+	let maskFuture;
 
 	phongMat.userData[ 'collision' ] = rwxMaterial.collision;
 
@@ -264,7 +265,7 @@ function makeThreeMaterial( rwxMaterial, folder, texExtension = "jpg", maskExten
 				const zipPath = folder + '/' + rwxMaterial.mask + '.' + maskExtension;
 
 				// We load the mask asynchronously using JSZip and JSZipUtils (if available)
-				new jsZip.external.Promise( function ( resolve, reject ) {
+				maskFuture = new jsZip.external.Promise( function ( resolve, reject ) {
 
 					jsZipUtils.getBinaryContent( zipPath, function ( err, data ) {
 
@@ -320,7 +321,10 @@ function makeThreeMaterial( rwxMaterial, folder, texExtension = "jpg", maskExten
 
 	}
 
-	return phongMat;
+	return {
+		phongMat: phongMat,
+		maskFuture: maskFuture,
+	};
 
 }
 
@@ -361,7 +365,9 @@ function makeMeshToCurrentGroup( ctx ) {
 		ctx.currentBufferGeometry.uvsNeedUpdate = true;
 		ctx.currentBufferGeometry.computeVertexNormals();
 
-		const mesh = new Mesh( ctx.currentBufferGeometry, ctx.materialManager.getCurrentMaterialList() );
+		ctx.maskFutures = ctx.maskFutures.concat(ctx.materialManager.getCurrentMaterialList().filter(res => res.maskFuture).map(res => res.maskFuture));
+
+		const mesh = new Mesh( ctx.currentBufferGeometry, ctx.materialManager.getCurrentMaterialList().map(res => res.phongMat) );
 		ctx.currentGroup.add( mesh );
 
 	}
@@ -767,7 +773,7 @@ class RWXLoader extends Loader {
 
 	}
 
-	parse( str, textureFolderPath ) {
+	parse( str, textureFolderPath, onParse ) {
 
 		// Parsing RWX file content
 
@@ -792,6 +798,8 @@ class RWXLoader extends Loader {
 
 			rwxClumpStack: [],
 			rwxProtoDict: {},
+
+			maskFutures: [],
 
 			materialManager: new RWXMaterialManager( textureFolderPath, this.texExtension, this.maskExtension, this.jsZip, this.jsZipUtils )
 
@@ -1320,7 +1328,11 @@ class RWXLoader extends Loader {
 
 		// We're done, return the root group to get the whole object, we take the decameter unit into account
 		ctx.groupStack[ 0 ].applyMatrix4( scale_ten );
-		return ctx.groupStack[ 0 ];
+
+		// Wait all mask futures before returning loaded object
+		Promise.all(ctx.maskFutures).then( ( results ) => {
+			onParse( ctx.groupStack[ 0 ] );
+		});
 
 	}
 
