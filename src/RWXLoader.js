@@ -704,6 +704,7 @@ class RWXLoader extends Loader {
 
 	jsZip = null;
 	jsZipUtils = null;
+	waitForZips = false;
 	texExtension = 'jpg';
 	maskExtension = 'zip';
 
@@ -713,10 +714,11 @@ class RWXLoader extends Loader {
 
 	}
 
-	setJSZip( jsZip, jsZipUtils ) {
+	setJSZip( jsZip, jsZipUtils, waitForZips = false ) {
 
 		this.jsZip = jsZip;
 		this.jsZipUtils = jsZipUtils;
+		this.waitForZips = waitForZips;
 
 		return this;
 
@@ -1329,10 +1331,15 @@ class RWXLoader extends Loader {
 		// We're done, return the root group to get the whole object, we take the decameter unit into account
 		ctx.groupStack[ 0 ].applyMatrix4( scale_ten );
 
-		// Wait all mask futures before returning loaded object
-		Promise.all(ctx.maskFutures).then( ( results ) => {
+		if (this.waitForZips) {
+			// Wait all mask futures before returning loaded object
+			Promise.all(ctx.maskFutures).then( ( results ) => {
+					onParse( ctx.groupStack[ 0 ] );
+			});
+		} else {
+			// Return immediately
 			onParse( ctx.groupStack[ 0 ] );
-		});
+		}
 
 	}
 
