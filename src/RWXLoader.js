@@ -229,10 +229,17 @@ function makeThreeMaterial( rwxMaterial, folder, texExtension = "jpg", maskExten
 
 	}
 
-	materialDict[ 'specular' ] = 0xffffff;
-	materialDict[ 'emissiveIntensity' ] = rwxMaterial.surface[ 1 ];
-	materialDict[ 'shininess' ] = rwxMaterial.surface[ 2 ] *
-		30; // '30' is the default Phong material shininess value
+	// The specular value in a Phong material is expressed using an hexadecimal value
+	// holding on 3 bytes, each representing a different color channel.
+	// Without any prior knowledge: we safely assume a white light instead
+	const whiteSpecular = Math.trunc( rwxMaterial.surface[ 2 ] * 255 );
+	materialDict[ 'specular' ] = ( whiteSpecular << 16 ) + ( whiteSpecular << 8 ) + whiteSpecular;
+
+	// Same thing for the emissive value
+	const whiteEmissive = Math.trunc( rwxMaterial.surface[ 1 ] );
+	materialDict[ 'emissive' ] = ( whiteEmissive << 16 ) + ( whiteEmissive << 8 ) + whiteEmissive;
+
+	materialDict[ 'shininess' ] = 30; // '30' is the demo's default Phong material shininess value
 	materialDict[ 'opacity' ] = rwxMaterial.opacity;
 
 	let phongMat = new MeshPhongMaterial( materialDict );
@@ -282,8 +289,16 @@ function makeThreeMaterial( rwxMaterial, folder, texExtension = "jpg", maskExten
 
 				} ).then( jsZip.loadAsync ).then( function ( zip ) {
 
-					// Chain with the bmp content promise
-					return zip.file( rwxMaterial.mask + '.bmp' ).async( "uint8array" );
+					// Chain with the bmp content promise, uppercase and lowercase extensions are both possible
+					if ( zip.file( rwxMaterial.mask + '.bmp' ) ) {
+
+						return zip.file( rwxMaterial.mask + '.bmp' ).async( "uint8array" );
+
+					} else if ( zip.file( rwxMaterial.mask + '.BMP' ) ) {
+
+						return zip.file( rwxMaterial.mask + '.BMP' ).async( "uint8array" );
+
+					}
 
 				} ).then( function success( buffer ) {
 
@@ -695,6 +710,7 @@ class RWXLoader extends Loader {
 	collisionRegex = /^ *(collision) +(on|off).*$/i;
 	lightsamplingRegex = /^ *(lightsampling) +(facet|vertex).*$/i;
 	geometrysamplingRegex = /^ *(geometrysampling) +(pointcloud|wireframe|solid).*$/i;
+	axisalignmentRegex = /^ *(axisalignment) +(none|zorientx|zorienty|xyz).*$/i;
 
 	jsZip = null;
 	jsZipUtils = null;
@@ -824,6 +840,7 @@ class RWXLoader extends Loader {
 			if ( res != null ) {
 
 				ctx.groupStack.push( new Group() );
+				ctx.groupStack[ 0 ].userData[ 'rwx' ] = { axisAlignment: "none" };
 				ctx.currentGroup = ctx.groupStack.slice( - 1 )[ 0 ];
 
 				ctx.transformStack.push( ctx.currentTransform );
@@ -1311,6 +1328,15 @@ class RWXLoader extends Loader {
 					ctx.materialManager.currentRWXMaterial.geometrysampling = GeometrySampling.SOLID;
 
 				}
+
+				continue;
+
+			}
+
+			res = this.axisalignmentRegex.exec( line );
+			if ( res != null ) {
+
+				ctx.groupStack[ 0 ].userData.rwx.axisAlignment = res[ 2 ].toLowerCase();
 
 				continue;
 
