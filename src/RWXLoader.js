@@ -236,7 +236,7 @@ function makeThreeMaterial( rwxMaterial, folder, texExtension = "jpg", maskExten
 	materialDict[ 'opacity' ] = rwxMaterial.opacity;
 
 	let phongMat = new MeshPhongMaterial( materialDict );
-	let maskFuture;
+	let loadingPromises = [];
 
 	phongMat.userData[ 'collision' ] = rwxMaterial.collision;
 
@@ -248,11 +248,21 @@ function makeThreeMaterial( rwxMaterial, folder, texExtension = "jpg", maskExten
 
 		// TODO: try to instanciate once
 		let loader = new TextureLoader();
-		let texturePath = folder + '/' + rwxMaterial.texture + '.' + texExtension;
-		let texture = loader.load( texturePath );
-		texture.wrapS = RepeatWrapping;
-		texture.wrapT = RepeatWrapping;
-		phongMat.map = texture;
+
+		loadingPromises.push(new Promise ( ( resolveTex, rejectTex ) => {
+
+			let texturePath = folder + '/' + rwxMaterial.texture + '.' + texExtension;
+			loader.load( texturePath, ( texture ) => {
+
+				texture.wrapS = RepeatWrapping;
+				texture.wrapT = RepeatWrapping;
+				phongMat.map = texture;
+				phongMat.needsUpdate = true;
+				resolveTex(texture);
+
+			});
+
+		}));
 
 		if ( rwxMaterial.mask != null ) {
 
@@ -265,7 +275,7 @@ function makeThreeMaterial( rwxMaterial, folder, texExtension = "jpg", maskExten
 				const zipPath = folder + '/' + rwxMaterial.mask + '.' + maskExtension;
 
 				// We load the mask asynchronously using JSZip and JSZipUtils (if available)
-				maskFuture = new jsZip.external.Promise( function ( resolve, reject ) {
+				loadingPromises.push(new jsZip.external.Promise( function ( resolve, reject ) {
 
 					jsZipUtils.getBinaryContent( zipPath, function ( err, data ) {
 
@@ -305,25 +315,34 @@ function makeThreeMaterial( rwxMaterial, folder, texExtension = "jpg", maskExten
 
 					throw e;
 
-				} );
+				} ) );
 
 			} else if ( maskExtension != 'zip' ) {
 
-				let bmpPath = folder + '/' + rwxMaterial.mask + '.' + maskExtension;
-				let maskTexture = loader.load( bmpPath );
-				maskTexture.wrapS = RepeatWrapping;
-				maskTexture.wrapT = RepeatWrapping;
-				phongMat.alphaMap = maskTexture;
+				loadingPromises.push(new Promise ( ( resolveMask, rejectMask ) => {
+
+					let bmpPath = folder + '/' + rwxMaterial.mask + '.' + maskExtension;
+					loader.load( bmpPath, ( maskTexture ) => {
+
+						maskTexture.wrapS = RepeatWrapping;
+						maskTexture.wrapT = RepeatWrapping;
+						phongMat.alphaMap = maskTexture;
+						phongMat.needsUpdate = true;
+						resolveMask(texture);
+
+					} );
+
+				}));
 
 			}
 
-	  }
+		}
 
 	}
 
 	return {
 		phongMat: phongMat,
-		maskFuture: maskFuture,
+		loadingPromises: loadingPromises,
 	};
 
 }
@@ -365,7 +384,7 @@ function makeMeshToCurrentGroup( ctx ) {
 		ctx.currentBufferGeometry.uvsNeedUpdate = true;
 		ctx.currentBufferGeometry.computeVertexNormals();
 
-		ctx.maskFutures = ctx.maskFutures.concat(ctx.materialManager.getCurrentMaterialList().filter(res => res.maskFuture).map(res => res.maskFuture));
+		ctx.loadingPromises = ctx.loadingPromises.concat(ctx.materialManager.getCurrentMaterialList().map(res => res.loadingPromises));
 
 		const mesh = new Mesh( ctx.currentBufferGeometry, ctx.materialManager.getCurrentMaterialList().map(res => res.phongMat) );
 		ctx.currentGroup.add( mesh );
@@ -704,9 +723,10 @@ class RWXLoader extends Loader {
 
 	jsZip = null;
 	jsZipUtils = null;
-	waitForZips = false;
 	texExtension = 'jpg';
 	maskExtension = 'zip';
+
+	waitFullLoad = false;
 
 	constructor( manager ) {
 
@@ -714,11 +734,10 @@ class RWXLoader extends Loader {
 
 	}
 
-	setJSZip( jsZip, jsZipUtils, waitForZips = false ) {
+	setJSZip( jsZip, jsZipUtils ) {
 
 		this.jsZip = jsZip;
 		this.jsZipUtils = jsZipUtils;
-		this.waitForZips = waitForZips;
 
 		return this;
 
@@ -740,6 +759,14 @@ class RWXLoader extends Loader {
 
 	}
 
+	setWaitFullLoad ( waitFullLoad ) {
+
+		this.waitFullLoad = waitFullLoad;
+
+		return this;
+
+	}
+
 	load( rwxFile, onLoad, onProgress, onError ) {
 
 		let scope = this;
@@ -753,7 +780,11 @@ class RWXLoader extends Loader {
 
 			try {
 
-				onLoad( scope.parse( text, resourcePath ) );
+				scope.parse ( text, resourcePath, function ( loadedObject ) {
+
+					onLoad( loadedObject );
+
+				});
 
 			} catch ( e ) {
 
@@ -801,7 +832,7 @@ class RWXLoader extends Loader {
 			rwxClumpStack: [],
 			rwxProtoDict: {},
 
-			maskFutures: [],
+			loadingPromises: [],
 
 			materialManager: new RWXMaterialManager( textureFolderPath, this.texExtension, this.maskExtension, this.jsZip, this.jsZipUtils )
 
@@ -1331,9 +1362,9 @@ class RWXLoader extends Loader {
 		// We're done, return the root group to get the whole object, we take the decameter unit into account
 		ctx.groupStack[ 0 ].applyMatrix4( scale_ten );
 
-		if (this.waitForZips) {
+		if ( this.waitFullLoad ) {
 			// Wait all mask futures before returning loaded object
-			Promise.all(ctx.maskFutures).then( ( results ) => {
+			Promise.all( ctx.loadingPromises.flat() ).then( ( results ) => {
 					onParse( ctx.groupStack[ 0 ] );
 			});
 		} else {
