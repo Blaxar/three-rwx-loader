@@ -275,7 +275,7 @@ function makeThreeMaterial( rwxMaterial, folder, texExtension = "jpg", maskExten
 				const zipPath = folder + '/' + rwxMaterial.mask + '.' + maskExtension;
 
 				// We load the mask asynchronously using JSZip and JSZipUtils (if available)
-				loadingPromises.push(new jsZip.external.Promise( function ( resolve, reject ) {
+				loadingPromises.push( new jsZip.external.Promise( function ( resolve, reject ) {
 
 					jsZipUtils.getBinaryContent( zipPath, function ( err, data ) {
 
@@ -332,7 +332,7 @@ function makeThreeMaterial( rwxMaterial, folder, texExtension = "jpg", maskExten
 
 					} );
 
-				}));
+				} ) );
 
 			}
 
@@ -384,9 +384,9 @@ function makeMeshToCurrentGroup( ctx ) {
 		ctx.currentBufferGeometry.uvsNeedUpdate = true;
 		ctx.currentBufferGeometry.computeVertexNormals();
 
-		ctx.loadingPromises = ctx.loadingPromises.concat(ctx.materialManager.getCurrentMaterialList().map(res => res.loadingPromises));
+		ctx.loadingPromises = ctx.loadingPromises.concat( ctx.materialManager.getCurrentMaterialList().map( res => res.loadingPromises ) );
 
-		const mesh = new Mesh( ctx.currentBufferGeometry, ctx.materialManager.getCurrentMaterialList().map(res => res.phongMat) );
+		const mesh = new Mesh( ctx.currentBufferGeometry, ctx.materialManager.getCurrentMaterialList().map( res => res.phongMat ) );
 		ctx.currentGroup.add( mesh );
 
 	}
