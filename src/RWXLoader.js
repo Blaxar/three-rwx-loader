@@ -185,7 +185,7 @@ function triangulateFacesWithShapes( vertices, uvs, loop ) {
 function makeThreeMaterial( rwxMaterial, folder, texExtension = "jpg", maskExtension =
   "zip", jsZip = null, jsZipUtils = null ) {
 
-	let materialDict = {};
+	let materialDict = { name: rwxMaterial.getMatSignature() };
 
 	if ( rwxMaterial.materialmode == MaterialMode.NULL ) {
 
@@ -314,8 +314,19 @@ function makeThreeMaterial( rwxMaterial, folder, texExtension = "jpg", maskExten
 				} ).then( function success( buffer ) {
 
 					// Load the bmp image into a data uri string
-					const bmpURI = "data:image/bmp;base64," +
-					btoa( String.fromCharCode.apply( null, new Uint16Array( buffer ) ) );
+					let bmpURI = "data:image/bmp;base64,";
+					const chunkSize = 4056;
+					let dataStr = "";
+
+					// Chunking the buffer to maximize browser compatibility and avoid exceeding some size limit
+					// during string creation when using 'String.fromCharCode'
+					for ( let i = 0; i < buffer.length; i += chunkSize ) {
+
+						dataStr = dataStr.concat( String.fromCharCode.apply( null, new Uint16Array( buffer.slice( i, i + chunkSize ) ) ) );
+
+					}
+
+					bmpURI = bmpURI.concat( btoa( dataStr ) );
 
 					// Make a texture out of the bmp mask, apply it to the material
 					let maskTexture = loader.load( bmpURI );
@@ -334,7 +345,7 @@ function makeThreeMaterial( rwxMaterial, folder, texExtension = "jpg", maskExten
 
 			} else if ( maskExtension != 'zip' ) {
 
-				loadingPromises.push(new Promise ( ( resolveMask, rejectMask ) => {
+				loadingPromises.push( new Promise ( ( resolveMask, rejectMask ) => {
 
 					let bmpPath = folder + '/' + rwxMaterial.mask + '.' + maskExtension;
 					loader.load( bmpPath, ( maskTexture ) => {
@@ -343,7 +354,7 @@ function makeThreeMaterial( rwxMaterial, folder, texExtension = "jpg", maskExten
 						maskTexture.wrapT = RepeatWrapping;
 						phongMat.alphaMap = maskTexture;
 						phongMat.needsUpdate = true;
-						resolveMask(texture);
+						resolveMask( texture );
 
 					} );
 
@@ -410,7 +421,7 @@ function makeMeshToCurrentGroup( ctx ) {
 
 function commitBufferGeometryGroup( ctx ) {
 
-	// Make new out of group existing data
+	// Make new material group out of existing data
 	ctx.currentBufferGeometry.addGroup( ctx.currentBufferGroupFirstFaceID, ctx.currentBufferFaceCount * 3, ctx.previousMaterialID );
 
 	// Set everything ready for the next group to start
@@ -550,6 +561,112 @@ function loadCurrentTransform( ctx ) {
 		ctx.currentTransform = new Matrix4();
 
 	}
+
+}
+
+// Utility function to merge all group and subgroup geometries into on single buffer, all while taking materials into account
+function mergeGeometryRecursive( group, ctx, transform = group.matrix ) {
+
+	group.children.forEach( ( child ) => {
+
+		let localTransform = new Matrix4();
+		localTransform.copy( transform );
+		localTransform.multiply( child.matrix );
+
+		if ( child instanceof Mesh ) {
+
+			// We first need to set up the new BufferGeometry groups
+			let geometryGroups = [];
+
+			child.geometry.groups.forEach( ( g ) => {
+
+				// Each group in the original geometry from the child needs to be exported,
+				// we take into account the already-registered geometry and materials
+				// from the context, so that we can compute offsets and match the
+				// final layout of the mesh (and final material IDs as well)
+				geometryGroups.push( {
+
+					start: g.start + ctx.indices.length,
+					count: g.count,
+					materialIndex: g.materialIndex + ctx.materials.length
+
+				} );
+
+			} );
+
+			const originalVertices = child.geometry.getAttribute( 'position' ).array;
+			const faceOffset = ctx.positions.length / 3;
+
+			// Import the current geometry (vertices and faces) from the child into the final buffer,
+			// apply local transformations if any
+			for ( let i = 0, l = originalVertices.length / 3; i < l; i ++ ) {
+
+				let tmpVertex = new Vector4( originalVertices[ i * 3 ], originalVertices[ i * 3 + 1 ], originalVertices[ i * 3 + 2 ] );
+				tmpVertex.applyMatrix4( localTransform );
+
+				ctx.positions.push( tmpVertex.x );
+				ctx.positions.push( tmpVertex.y );
+				ctx.positions.push( tmpVertex.z );
+
+			}
+
+			// Do not forget the UVs either
+			ctx.uvs.push( ...child.geometry.getAttribute( 'uv' ).array );
+
+			ctx.indices.push( ...child.geometry.getIndex().array.map( ( value ) => {
+
+				return value + faceOffset;
+
+			} ) );
+
+			// Add the materials from the child to the final material list
+			ctx.materials.push( ...child.material );
+
+			// Since the new BufferGeometry groups are all set, we can import them into the
+			// final buffer geometry
+			geometryGroups.forEach( ( g ) => {
+
+				ctx.bufferGeometry.addGroup( g.start, g.count, g.materialIndex );
+
+			} );
+
+		} else if ( child instanceof Group ) {
+
+			/* Recursive case */
+			mergeGeometryRecursive( child, ctx, localTransform );
+
+		}
+
+	} );
+
+}
+
+function flattenGroup( group ) {
+
+	let ctx = {
+
+		bufferGeometry: new BufferGeometry(),
+		positions: [],
+		uvs: [],
+		indices: [],
+		materials: [],
+
+	};
+
+	mergeGeometryRecursive( group, ctx );
+
+	/* Ready data for final BufferGeometry */
+	ctx.bufferGeometry.setAttribute( 'position', new BufferAttribute( new Float32Array( ctx.positions ), 3 ) );
+	ctx.bufferGeometry.setAttribute( 'uv', new BufferAttribute( new Float32Array( ctx.uvs ), 2 ) );
+	ctx.bufferGeometry.setIndex( ctx.indices );
+	ctx.uvsNeedUpdate = true;
+	ctx.bufferGeometry.computeVertexNormals();
+
+	let finalMesh = new Mesh( ctx.bufferGeometry, ctx.materials );
+
+	finalMesh.userData[ 'rwx' ] = group.userData[ 'rwx' ];
+
+	return finalMesh;
 
 }
 
@@ -743,6 +860,7 @@ class RWXLoader extends Loader {
 	maskExtension = 'zip';
 
 	waitFullLoad = false;
+	flatten = false;
 
 	constructor( manager ) {
 
@@ -750,6 +868,7 @@ class RWXLoader extends Loader {
 
 	}
 
+	// Provide jsZip and jsZipUtils modules to the loader, required for proper texture masks handling
 	setJSZip( jsZip, jsZipUtils ) {
 
 		this.jsZip = jsZip;
@@ -759,6 +878,7 @@ class RWXLoader extends Loader {
 
 	}
 
+	// Set the expected texture files extension, 'jpg' by default
 	setTexExtension( texExtension ) {
 
 		this.texExtension = texExtension;
@@ -767,6 +887,7 @@ class RWXLoader extends Loader {
 
 	}
 
+	// Set the expected texture mask files extension, 'zip' by default
 	setMaskExtension( maskExtension ) {
 
 		this.maskExtension = maskExtension;
@@ -775,9 +896,21 @@ class RWXLoader extends Loader {
 
 	}
 
+	// Wether or not to wait for full loading before returning the objet, textures are loaded asynchronously by default,
+	// set this to 'true' for the loader to only return the object once it's fully loaded
 	setWaitFullLoad ( waitFullLoad ) {
 
 		this.waitFullLoad = waitFullLoad;
+
+		return this;
+
+	}
+
+	// Wether or not to flatten the objet, the object will consist of nested groups by default,
+	// set this to 'true' to get a single mesh holding everything
+	setFlatten ( flatten ) {
+
+		this.flatten = flatten;
 
 		return this;
 
@@ -1389,13 +1522,19 @@ class RWXLoader extends Loader {
 		ctx.groupStack[ 0 ].applyMatrix4( scale_ten );
 
 		if ( this.waitFullLoad ) {
+
 			// Wait all mask futures before returning loaded object
 			Promise.all( ctx.loadingPromises.flat() ).then( ( results ) => {
-					onParse( ctx.groupStack[ 0 ] );
+
+				onParse( this.flatten ? flattenGroup( ctx.groupStack[ 0 ] ) : ctx.groupStack[ 0 ] );
+
 			});
+
 		} else {
+
 			// Return immediately
-			onParse( ctx.groupStack[ 0 ] );
+			onParse( this.flatten ? flattenGroup( ctx.groupStack[ 0 ] ) : ctx.groupStack[ 0 ] );
+
 		}
 
 	}
