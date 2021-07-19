@@ -279,7 +279,8 @@ function makeThreeMaterial( rwxMaterial, folder, texExtension = "jpg", maskExten
 			if ( maskExtension == "zip" && jsZip != null && jsZipUtils != null ) {
 
 				// We try to extract the bmp mask from the archive
-				const zipPath = folder + '/' + rwxMaterial.mask + '.' + maskExtension;
+				const maskBaseName = rwxMaterial.mask;
+				const zipPath = folder + '/' + maskBaseName + '.' + maskExtension;
 
 				// We load the mask asynchronously using JSZip and JSZipUtils (if available)
 				loadingPromises.push( new jsZip.external.Promise( function ( resolve, reject ) {
@@ -300,14 +301,16 @@ function makeThreeMaterial( rwxMaterial, folder, texExtension = "jpg", maskExten
 
 				} ).then( jsZip.loadAsync ).then( function ( zip ) {
 
+					let maskFile = null;
+
 					// Chain with the bmp content promise, uppercase and lowercase extensions are both possible
-					if ( zip.file( rwxMaterial.mask + '.bmp' ) ) {
+					if ( maskFile = zip.file( maskBaseName + '.bmp' ) ) {
 
-						return zip.file( rwxMaterial.mask + '.bmp' ).async( "uint8array" );
+						return maskFile.async( "uint8array" );
 
-					} else if ( zip.file( rwxMaterial.mask + '.BMP' ) ) {
+					} else if ( maskFile = zip.file( maskBaseName + '.BMP' ) ) {
 
-						return zip.file( rwxMaterial.mask + '.BMP' ).async( "uint8array" );
+						return maskFile.async( "uint8array" );
 
 					}
 
