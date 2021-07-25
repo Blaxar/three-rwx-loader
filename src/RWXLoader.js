@@ -182,8 +182,127 @@ function triangulateFacesWithShapes( vertices, uvs, loop ) {
 
 }
 
-function makeThreeMaterial( rwxMaterial, folder, texExtension = "jpg", maskExtension =
-  "zip", jsZip = null, jsZipUtils = null ) {
+
+function applyTextureToPhong( phongMat, folder, textureName, textureExtension = "jpg", maskName = null,
+	maskExtension = "zip", jsZip = null, jsZipUtils = null, loadingPromises = [] ) {
+
+	let loader = new TextureLoader();
+
+	loadingPromises.push( new Promise ( ( resolveTex, rejectTex ) => {
+
+		const texturePath = folder + '/' + textureName + '.' + textureExtension;
+		loader.load( texturePath, ( texture ) => {
+
+			texture.wrapS = RepeatWrapping;
+			texture.wrapT = RepeatWrapping;
+			phongMat.map = texture;
+			phongMat.needsUpdate = true;
+			resolveTex(texture);
+
+		} );
+
+	} ) );
+
+	if ( maskName != null ) {
+
+		phongMat.alphaTest = 0.2;
+		phongMat.transparent = true;
+
+		if ( maskExtension == "zip" && jsZip != null && jsZipUtils != null ) {
+
+			// We try to extract the bmp mask from the archive
+			const maskBaseName = maskName;
+			const zipPath = folder + '/' + maskBaseName + '.' + maskExtension;
+
+			// We load the mask asynchronously using JSZip and JSZipUtils (if available)
+			loadingPromises.push( new jsZip.external.Promise( function ( resolve, reject ) {
+
+				jsZipUtils.getBinaryContent( zipPath, function ( err, data ) {
+
+					if ( err ) {
+
+						reject( err );
+
+					} else {
+
+						resolve( data );
+
+					}
+
+				} );
+
+			} ).then( jsZip.loadAsync ).then( function ( zip ) {
+
+				let maskFile = null;
+
+				// Chain with the bmp content promise, uppercase and lowercase extensions are both possible
+				if ( maskFile = zip.file( maskBaseName + '.bmp' ) ) {
+
+					return maskFile.async( "uint8array" );
+
+				} else if ( maskFile = zip.file( maskBaseName + '.BMP' ) ) {
+
+					return maskFile.async( "uint8array" );
+
+				}
+
+			} ).then( function success( buffer ) {
+
+				// Load the bmp image into a data uri string
+				let bmpURI = "data:image/bmp;base64,";
+				const chunkSize = 4056;
+				let dataStr = "";
+
+				// Chunking the buffer to maximize browser compatibility and avoid exceeding some size limit
+				// during string creation when using 'String.fromCharCode'
+				for ( let i = 0; i < buffer.length; i += chunkSize ) {
+
+					dataStr = dataStr.concat( String.fromCharCode.apply( null, new Uint16Array( buffer.slice( i, i + chunkSize ) ) ) );
+
+				}
+
+				bmpURI = bmpURI.concat( btoa( dataStr ) );
+
+				// Make a texture out of the bmp mask, apply it to the material
+				let maskTexture = loader.load( bmpURI );
+				maskTexture.wrapS = RepeatWrapping;
+				maskTexture.wrapT = RepeatWrapping;
+				phongMat.alphaMap = maskTexture;
+
+				// Notify three.js that this material has been updated (to re-render it)
+				phongMat.needsUpdate = true;
+
+			}, function error( e ) {
+
+				throw e;
+
+			} ) );
+
+		} else if ( maskExtension != 'zip' ) {
+
+			loadingPromises.push( new Promise ( ( resolveMask, rejectMask ) => {
+
+				let bmpPath = folder + '/' + maskName + '.' + maskExtension;
+				loader.load( bmpPath, ( maskTexture ) => {
+
+					maskTexture.wrapS = RepeatWrapping;
+					maskTexture.wrapT = RepeatWrapping;
+					phongMat.alphaMap = maskTexture;
+					phongMat.needsUpdate = true;
+					resolveMask( texture );
+
+				} );
+
+			} ) );
+
+		}
+
+	}
+
+}
+
+function makeThreeMaterial( rwxMaterial, folder, textureExtension = "jpg", maskExtension =
+	"zip", jsZip = null, jsZipUtils = null ) {
 
 	let materialDict = { name: rwxMaterial.getMatSignature() };
 
@@ -253,119 +372,8 @@ function makeThreeMaterial( rwxMaterial, folder, texExtension = "jpg", maskExten
 
 	} else {
 
-		// TODO: try to instanciate once
-		let loader = new TextureLoader();
-
-		loadingPromises.push(new Promise ( ( resolveTex, rejectTex ) => {
-
-			let texturePath = folder + '/' + rwxMaterial.texture + '.' + texExtension;
-			loader.load( texturePath, ( texture ) => {
-
-				texture.wrapS = RepeatWrapping;
-				texture.wrapT = RepeatWrapping;
-				phongMat.map = texture;
-				phongMat.needsUpdate = true;
-				resolveTex(texture);
-
-			});
-
-		}));
-
-		if ( rwxMaterial.mask != null ) {
-
-			phongMat.alphaTest = 0.2;
-			phongMat.transparent = true;
-
-			if ( maskExtension == "zip" && jsZip != null && jsZipUtils != null ) {
-
-				// We try to extract the bmp mask from the archive
-				const maskBaseName = rwxMaterial.mask;
-				const zipPath = folder + '/' + maskBaseName + '.' + maskExtension;
-
-				// We load the mask asynchronously using JSZip and JSZipUtils (if available)
-				loadingPromises.push( new jsZip.external.Promise( function ( resolve, reject ) {
-
-					jsZipUtils.getBinaryContent( zipPath, function ( err, data ) {
-
-						if ( err ) {
-
-							reject( err );
-
-						} else {
-
-							resolve( data );
-
-						}
-
-					} );
-
-				} ).then( jsZip.loadAsync ).then( function ( zip ) {
-
-					let maskFile = null;
-
-					// Chain with the bmp content promise, uppercase and lowercase extensions are both possible
-					if ( maskFile = zip.file( maskBaseName + '.bmp' ) ) {
-
-						return maskFile.async( "uint8array" );
-
-					} else if ( maskFile = zip.file( maskBaseName + '.BMP' ) ) {
-
-						return maskFile.async( "uint8array" );
-
-					}
-
-				} ).then( function success( buffer ) {
-
-					// Load the bmp image into a data uri string
-					let bmpURI = "data:image/bmp;base64,";
-					const chunkSize = 4056;
-					let dataStr = "";
-
-					// Chunking the buffer to maximize browser compatibility and avoid exceeding some size limit
-					// during string creation when using 'String.fromCharCode'
-					for ( let i = 0; i < buffer.length; i += chunkSize ) {
-
-						dataStr = dataStr.concat( String.fromCharCode.apply( null, new Uint16Array( buffer.slice( i, i + chunkSize ) ) ) );
-
-					}
-
-					bmpURI = bmpURI.concat( btoa( dataStr ) );
-
-					// Make a texture out of the bmp mask, apply it to the material
-					let maskTexture = loader.load( bmpURI );
-					maskTexture.wrapS = RepeatWrapping;
-					maskTexture.wrapT = RepeatWrapping;
-					phongMat.alphaMap = maskTexture;
-
-					// Notify three.js that this material has been updated (to re-render it)
-					phongMat.needsUpdate = true;
-
-				}, function error( e ) {
-
-					throw e;
-
-				} ) );
-
-			} else if ( maskExtension != 'zip' ) {
-
-				loadingPromises.push( new Promise ( ( resolveMask, rejectMask ) => {
-
-					let bmpPath = folder + '/' + rwxMaterial.mask + '.' + maskExtension;
-					loader.load( bmpPath, ( maskTexture ) => {
-
-						maskTexture.wrapS = RepeatWrapping;
-						maskTexture.wrapT = RepeatWrapping;
-						phongMat.alphaMap = maskTexture;
-						phongMat.needsUpdate = true;
-						resolveMask( texture );
-
-					} );
-
-				} ) );
-
-			}
-
-		}
+		applyTextureToPhong( phongMat, folder, rwxMaterial.texture, textureExtension, rwxMaterial.mask,
+			maskExtension, jsZip, jsZipUtils, loadingPromises);
 
 	}
 
@@ -740,7 +748,7 @@ class RWXMaterial {
 class RWXMaterialManager {
 
 	folder
-	texExtension
+	textureExtension
 	maskExtension
 	jsZip
 	jsZipUtils
@@ -751,11 +759,11 @@ class RWXMaterialManager {
 	currentMaterialList = [];
 	currentMaterialSignature = "";
 
-	constructor( folder, texExtension = "jpg", maskExtension =
+	constructor( folder, textureExtension = "jpg", maskExtension =
 	  "zip", jsZip = null, jsZipUtils = null ) {
 
 		this.folder = folder;
-		this.texExtension = texExtension;
+		this.textureExtension = textureExtension;
 		this.maskExtension = maskExtension;
 		this.jsZip = jsZip;
 		this.jsZipUtils = jsZipUtils;
@@ -770,7 +778,7 @@ class RWXMaterialManager {
 		if ( this.threeMaterialMap[ materialSignature ] === undefined ) {
 
 			this.threeMaterialMap[ materialSignature ] = makeThreeMaterial( this.currentRWXMaterial,
-				this.folder, this.texExtension, this.maskExtension, this.jsZip, this.jsZipUtils );
+				this.folder, this.textureExtension, this.maskExtension, this.jsZip, this.jsZipUtils );
 			this.threeMaterialMap[ materialSignature ].needsUpdate = true;
 
 		}
@@ -859,7 +867,7 @@ class RWXLoader extends Loader {
 
 	jsZip = null;
 	jsZipUtils = null;
-	texExtension = 'jpg';
+	textureExtension = 'jpg';
 	maskExtension = 'zip';
 
 	waitFullLoad = false;
@@ -882,9 +890,9 @@ class RWXLoader extends Loader {
 	}
 
 	// Set the expected texture files extension, 'jpg' by default
-	setTexExtension( texExtension ) {
+	setTextureExtension( textureExtension ) {
 
-		this.texExtension = texExtension;
+		this.textureExtension = textureExtension;
 
 		return this;
 
@@ -986,7 +994,7 @@ class RWXLoader extends Loader {
 
 			loadingPromises: [],
 
-			materialManager: new RWXMaterialManager( textureFolderPath, this.texExtension, this.maskExtension, this.jsZip, this.jsZipUtils )
+			materialManager: new RWXMaterialManager( textureFolderPath, this.textureExtension, this.maskExtension, this.jsZip, this.jsZipUtils )
 
 		};
 
@@ -1545,3 +1553,5 @@ class RWXLoader extends Loader {
 }
 
 export default RWXLoader;
+export { RWXMaterial, RWXMaterialManager, makeThreeMaterial, applyTextureToPhong,
+	LightSampling, GeometrySampling, TextureMode, MaterialMode };
