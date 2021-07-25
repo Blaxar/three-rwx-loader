@@ -5,7 +5,10 @@
   "type": "module",
   "main": "src/RWXLoader.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "NODE_OPTIONS=--experimental-vm-modules npx jest"
+  },
+  "devDependencies": {
+    "jest": "^27.0.6"
   },
   "dependencies": {
     "three": "^0.130.1"
