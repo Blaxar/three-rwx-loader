@@ -670,7 +670,7 @@ function flattenGroup( group ) {
 	ctx.bufferGeometry.setAttribute( 'position', new BufferAttribute( new Float32Array( ctx.positions ), 3 ) );
 	ctx.bufferGeometry.setAttribute( 'uv', new BufferAttribute( new Float32Array( ctx.uvs ), 2 ) );
 	ctx.bufferGeometry.setIndex( ctx.indices );
-	ctx.uvsNeedUpdate = true;
+	ctx.bufferGeometry.uvsNeedUpdate = true;
 	ctx.bufferGeometry.computeVertexNormals();
 
 	let finalMesh = new Mesh( ctx.bufferGeometry, ctx.materials );
@@ -1554,4 +1554,4 @@ class RWXLoader extends Loader {
 
 export default RWXLoader;
 export { RWXMaterial, RWXMaterialManager, makeThreeMaterial, applyTextureToPhong,
-	LightSampling, GeometrySampling, TextureMode, MaterialMode };
+	LightSampling, GeometrySampling, TextureMode, MaterialMode, flattenGroup };
