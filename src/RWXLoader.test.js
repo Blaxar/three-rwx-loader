@@ -72,8 +72,36 @@ test('RWXMaterial', () => {
 
     expect(rwxMat.getMatSignature()).toBe("0.0000.0000.0000.0000.0000.0001.0001311true");
 
+    const clonedMat = rwxMat.clone();
+
     rwxMat.texture = "wood1";
     rwxMat.mask = "wood1m";
 
     expect(rwxMat.getMatSignature()).toBe("0.0000.0000.0000.0000.0000.0001.0001311wood1wood1mtrue");
+
+    rwxMat.color[0] = 1;
+    rwxMat.color[1] = 2;
+    rwxMat.color[2] = 3;
+    rwxMat.surface[0] = 4;
+    rwxMat.surface[1] = 5;
+    rwxMat.surface[2] = 6;
+    rwxMat.texturemodes.push(TextureMode.FILTER);
+
+    expect(clonedMat.color).toHaveLength(3);
+    expect(clonedMat.color[0]).toBe(0.0);
+    expect(clonedMat.color[1]).toBe(0.0);
+    expect(clonedMat.color[2]).toBe(0.0);
+    expect(clonedMat.surface).toHaveLength(3);
+    expect(clonedMat.surface[0]).toBe(0.0);
+    expect(clonedMat.surface[1]).toBe(0.0);
+    expect(clonedMat.surface[2]).toBe(0.0);
+    expect(clonedMat.opacity).toBe(1.0);
+    expect(clonedMat.lightsampling).toBe(LightSampling.FACET);
+    expect(clonedMat.geometrysampling).toBe(GeometrySampling.SOLID);
+    expect(clonedMat.texturemodes).toHaveLength(1);
+    expect(clonedMat.texturemodes[0]).toBe(TextureMode.LIT);
+    expect(clonedMat.materialmode).toBe(MaterialMode.NULL);
+    expect(clonedMat.texture).toBeNull();
+    expect(clonedMat.mask).toBeNull();
+    expect(clonedMat.transform.equals(new Matrix4)).toBe(true);
 });

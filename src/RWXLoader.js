@@ -233,16 +233,14 @@ function applyTextureToPhong( phongMat, folder, textureName, textureExtension = 
 
 			} ).then( jsZip.loadAsync ).then( function ( zip ) {
 
-				let maskFile = null;
+				// Chain with the bmp content promise, we need to be case insensitive
+				for ( const [ key ] of Object.entries( zip.files ) ) {
 
-				// Chain with the bmp content promise, uppercase and lowercase extensions are both possible
-				if ( maskFile = zip.file( maskBaseName + '.bmp' ) ) {
+					if ( key.toLowerCase() == ( maskBaseName.toLowerCase() + '.bmp' ) ) {
 
-					return maskFile.async( "uint8array" );
+						  return zip.file( key ).async( "uint8array" );
 
-				} else if ( maskFile = zip.file( maskBaseName + '.BMP' ) ) {
-
-					return maskFile.async( "uint8array" );
+					}
 
 				}
 
@@ -362,6 +360,7 @@ function makeThreeMaterial( rwxMaterial, folder, textureExtension = "jpg", maskE
 	materialDict[ 'opacity' ] = rwxMaterial.opacity;
 
 	let phongMat = new MeshPhongMaterial( materialDict );
+	phongMat.userData.rwx = { material: rwxMaterial.clone() }
 	let loadingPromises = [];
 
 	phongMat.userData[ 'collision' ] = rwxMaterial.collision;
@@ -701,6 +700,26 @@ class RWXMaterial {
 	transform = new Matrix4();
 
 	constructor() {
+
+	}
+
+	// Make a deep copy of the RWX material instance
+	clone() {
+
+		let cloned = new RWXMaterial();
+
+		cloned.color = [ ...this.color ];
+		cloned.surface = [ ...this.surface ];
+		cloned.opacity = this.opacity;
+		cloned.lightsampling = this.lightsampling;
+		cloned.geometrysampling = this.geometrysampling;
+		cloned.texturemodes = [ ...this.texturemodes ];
+		cloned.materialmode = this.materialmode;
+		cloned.texture = this.texture;
+		cloned.mask = this.mask;
+		cloned.collision = this.collision;
+
+		return cloned;
 
 	}
 
