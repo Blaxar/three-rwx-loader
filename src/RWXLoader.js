@@ -587,22 +587,45 @@ function mergeGeometryRecursive( group, ctx, transform = group.matrix ) {
 
 			// We first need to set up the new BufferGeometry groups
 			let geometryGroups = [];
+			const geometryIndices = child.geometry.getIndex().array;
 
-			child.geometry.groups.forEach( ( g ) => {
+			if ( typeof child.material[ Symbol.iterator ] === 'function' ) {
 
-				// Each group in the original geometry from the child needs to be exported,
-				// we take into account the already-registered geometry and materials
-				// from the context, so that we can compute offsets and match the
-				// final layout of the mesh (and final material IDs as well)
-				geometryGroups.push( {
+				// There's likely multiple materials to deal with, so we fetch the original geometry groups
+				child.geometry.groups.forEach( ( g ) => {
 
-					start: g.start + ctx.indices.length,
-					count: g.count,
-					materialIndex: g.materialIndex + ctx.materials.length
+					// Each group in the original geometry from the child needs to be exported,
+					// we take into account the already-registered geometry and materials
+					// from the context, so that we can compute offsets and match the
+					// final layout of the mesh (and final material IDs as well)
+					geometryGroups.push( {
+
+						start: g.start + ctx.indices.length,
+						count: g.count,
+						materialIndex: g.materialIndex + ctx.materials.length
+
+					} );
 
 				} );
 
-			} );
+				// Add the materials from the child to the final material list
+				ctx.materials.push( ...child.material );
+
+			} else {
+
+				// There's only one single material, but it will still need its own geometry group
+				// in the final mesh
+				geometryGroups.push( {
+
+					start: ctx.indices.length,
+					count: geometryIndices.length,
+					materialIndex: ctx.materials.length
+
+				} );
+
+				ctx.materials.push( child.material );
+
+			}
 
 			const originalVertices = child.geometry.getAttribute( 'position' ).array;
 			const faceOffset = ctx.positions.length / 3;
@@ -623,14 +646,11 @@ function mergeGeometryRecursive( group, ctx, transform = group.matrix ) {
 			// Do not forget the UVs either
 			ctx.uvs.push( ...child.geometry.getAttribute( 'uv' ).array );
 
-			ctx.indices.push( ...child.geometry.getIndex().array.map( ( value ) => {
+			ctx.indices.push( ...geometryIndices.map( ( value ) => {
 
 				return value + faceOffset;
 
 			} ) );
-
-			// Add the materials from the child to the final material list
-			ctx.materials.push( ...child.material );
 
 			// Since the new BufferGeometry groups are all set, we can import them into the
 			// final buffer geometry
