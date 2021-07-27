@@ -85,7 +85,20 @@ test('RWXMaterial', () => {
     rwxMat.surface[0] = 4;
     rwxMat.surface[1] = 5;
     rwxMat.surface[2] = 6;
+    rwxMat.opacity = 0.5;
+    rwxMat.lightsampling = LightSampling.VERTEX;
+    rwxMat.geometrysampling = GeometrySampling.WIREFRAME;
     rwxMat.texturemodes.push(TextureMode.FILTER);
+    rwxMat.materialmode = MaterialMode.NONE;
+    rwxMat.texture = "texture1";
+    rwxMat.mask = "texture1m";
+    rwxMat.collision = false;
+
+    // We ensure that everything was copied, down to the methods themselves
+    expect(typeof clonedMat.constructor).toBe('function');
+    expect(typeof clonedMat.clone).toBe('function');
+    expect(typeof clonedMat.getColorHexValue).toBe('function');
+    expect(typeof clonedMat.getMatSignature).toBe('function');
 
     expect(clonedMat.color).toHaveLength(3);
     expect(clonedMat.color[0]).toBe(0.0);

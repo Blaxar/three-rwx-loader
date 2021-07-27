@@ -726,18 +726,12 @@ class RWXMaterial {
 	// Make a deep copy of the RWX material instance
 	clone() {
 
-		let cloned = new RWXMaterial();
+		let cloned = Object.assign( Object.create( Object.getPrototypeOf( this ) ),
+			this );
 
 		cloned.color = [ ...this.color ];
 		cloned.surface = [ ...this.surface ];
-		cloned.opacity = this.opacity;
-		cloned.lightsampling = this.lightsampling;
-		cloned.geometrysampling = this.geometrysampling;
 		cloned.texturemodes = [ ...this.texturemodes ];
-		cloned.materialmode = this.materialmode;
-		cloned.texture = this.texture;
-		cloned.mask = this.mask;
-		cloned.collision = this.collision;
 
 		return cloned;
 
