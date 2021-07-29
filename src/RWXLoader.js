@@ -867,8 +867,6 @@ class RWXLoader extends Loader {
 	integerRegex = /([-+]?[0-9]+)/g;
 	floatRegex = /([+-]?([0-9]+([.][0-9]*)?|[.][0-9]+))/g;
 	nonCommentRegex = /^(.*)#/g;
-	modelbeginRegex = /^ *(modelbegin).*$/i;
-	modelendRegex = /^ *(modelend).*$/i;
 	clumpbeginRegex = /^ *(clumpbegin).*$/i;
 	clumpendRegex = /^ *(clumpend).*$/i;
 	transformbeginRegex = /^ *(transformbegin).*$/i;
@@ -1039,11 +1037,17 @@ class RWXLoader extends Loader {
 
 		const lines = str.split( /[\n\r]+/g );
 
+		// Ready root object group
+		ctx.groupStack.push( new Group() );
+		ctx.groupStack[ 0 ].userData[ 'rwx' ] = { axisAlignment: "none" };
+		ctx.currentGroup = ctx.groupStack.slice( - 1 )[ 0 ];
+		ctx.transformStack.push( ctx.currentTransform );
+
 		for ( let i = 0, l = lines.length; i < l; i ++ ) {
 
 			let line = lines[ i ];
 
-			// strip comment away (if any)
+			// Strip comment away (if any)
 			let res = this.nonCommentRegex.exec( line );
 			if ( res != null ) {
 
@@ -1051,21 +1055,8 @@ class RWXLoader extends Loader {
 
 			}
 
-			// replace tabs with spaces
+			// Replace tabs with spaces
 			line = line.trim().replace( /\t/g, ' ' );
-
-			res = this.modelbeginRegex.exec( line );
-			if ( res != null ) {
-
-				ctx.groupStack.push( new Group() );
-				ctx.groupStack[ 0 ].userData[ 'rwx' ] = { axisAlignment: "none" };
-				ctx.currentGroup = ctx.groupStack.slice( - 1 )[ 0 ];
-
-				ctx.transformStack.push( ctx.currentTransform );
-
-				continue;
-
-			}
 
 			res = this.clumpbeginRegex.exec( line );
 			if ( res != null ) {
