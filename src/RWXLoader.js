@@ -25,7 +25,8 @@ import {
 	BufferAttribute,
 	EdgesGeometry,
 	LineSegments,
-	LineBasicMaterial
+	LineBasicMaterial,
+	SphereGeometry
 } from 'three';
 
 const LightSampling = {
@@ -163,8 +164,8 @@ function triangulateFacesWithShapes( vertices, uvs, loop ) {
 		bufferPosition.setXYZ(
 			i,
 			vertices[ vertexMap[ i ] * 3 ],
-			vertices[ vertexMap [ i ] * 3 + 1 ],
-			vertices[ vertexMap [ i ] * 3 + 2 ]
+			vertices[ vertexMap[ i ] * 3 + 1 ],
+			vertices[ vertexMap[ i ] * 3 + 2 ]
 		);
 
 	}
@@ -188,7 +189,7 @@ function applyTextureToPhong( phongMat, folder, textureName, textureExtension = 
 
 	let loader = new TextureLoader();
 
-	loadingPromises.push( new Promise ( ( resolveTex, rejectTex ) => {
+	loadingPromises.push( new Promise( ( resolveTex ) => {
 
 		const texturePath = folder + '/' + textureName + '.' + textureExtension;
 		loader.load( texturePath, ( texture ) => {
@@ -197,7 +198,7 @@ function applyTextureToPhong( phongMat, folder, textureName, textureExtension = 
 			texture.wrapT = RepeatWrapping;
 			phongMat.map = texture;
 			phongMat.needsUpdate = true;
-			resolveTex(texture);
+			resolveTex( texture );
 
 		} );
 
@@ -238,7 +239,7 @@ function applyTextureToPhong( phongMat, folder, textureName, textureExtension = 
 
 					if ( key.toLowerCase() == ( maskBaseName.toLowerCase() + '.bmp' ) ) {
 
-						  return zip.file( key ).async( "uint8array" );
+						return zip.file( key ).async( "uint8array" );
 
 					}
 
@@ -278,7 +279,7 @@ function applyTextureToPhong( phongMat, folder, textureName, textureExtension = 
 
 		} else if ( maskExtension != 'zip' ) {
 
-			loadingPromises.push( new Promise ( ( resolveMask, rejectMask ) => {
+			loadingPromises.push( new Promise( ( resolveMask ) => {
 
 				let bmpPath = folder + '/' + maskName + '.' + maskExtension;
 				loader.load( bmpPath, ( maskTexture ) => {
@@ -287,7 +288,7 @@ function applyTextureToPhong( phongMat, folder, textureName, textureExtension = 
 					maskTexture.wrapT = RepeatWrapping;
 					phongMat.alphaMap = maskTexture;
 					phongMat.needsUpdate = true;
-					resolveMask( texture );
+					resolveMask( maskTexture );
 
 				} );
 
@@ -300,7 +301,7 @@ function applyTextureToPhong( phongMat, folder, textureName, textureExtension = 
 }
 
 function makeThreeMaterial( rwxMaterial, folder, textureExtension = "jpg", maskExtension =
-	"zip", jsZip = null, jsZipUtils = null ) {
+"zip", jsZip = null, jsZipUtils = null ) {
 
 	let materialDict = { name: rwxMaterial.getMatSignature() };
 
@@ -360,7 +361,7 @@ function makeThreeMaterial( rwxMaterial, folder, textureExtension = "jpg", maskE
 	materialDict[ 'opacity' ] = rwxMaterial.opacity;
 
 	let phongMat = new MeshPhongMaterial( materialDict );
-	phongMat.userData.rwx = { material: rwxMaterial.clone() }
+	phongMat.userData.rwx = { material: rwxMaterial.clone() };
 	let loadingPromises = [];
 
 	phongMat.userData[ 'collision' ] = rwxMaterial.collision;
@@ -372,7 +373,7 @@ function makeThreeMaterial( rwxMaterial, folder, textureExtension = "jpg", maskE
 	} else {
 
 		applyTextureToPhong( phongMat, folder, rwxMaterial.texture, textureExtension, rwxMaterial.mask,
-			maskExtension, jsZip, jsZipUtils, loadingPromises);
+			maskExtension, jsZip, jsZipUtils, loadingPromises );
 
 	}
 
@@ -523,6 +524,336 @@ function addPolygon( ctx, indices ) {
 		ctx.currentBufferFaces.push( a, b, c );
 
 	}
+
+}
+
+function makeVertexCircle( h, r, n, v = null ) {
+
+	if ( n < 3 ) {
+
+		throw ( "Need at least 3 sides to make a vertex circle" );
+
+	}
+
+	let positions = [];
+	let uvs = [];
+	let vec = new Vector3();
+	const deltaRad = Math.PI * 2 / n;
+	const axis = new Vector3( 0, 1, 0 );
+
+	vec.add( new Vector3( r, 0, 0 ) );
+
+	for ( let i = 0; i < n; i ++ ) {
+
+		positions.push( vec.x, vec.y + h, vec.z );
+		vec.applyAxisAngle( axis, deltaRad );
+
+		if ( v === null ) {
+
+			// No reference V value provided for UVs: assuming a circular cutout in the texture
+			uvs.push( ( Math.cos( deltaRad * i ) + 1 ) / 2, ( Math.sin( deltaRad * i ) + 1 ) / 2 );
+
+		} else {
+
+			// V value provided: picking UVs along U axis with fixed V
+			uvs.push( 1 / n * i, v );
+
+		}
+
+	}
+
+	return [ positions, uvs ];
+
+}
+
+function addBlock( ctx, w, h, d ) {
+
+	let bufferGeometry = new BufferGeometry();
+	let material = ctx.materialManager.getCurrentMaterial().phongMat;
+
+	if ( ! material.flatShading ) {
+
+		material = material.clone();
+		material.flatShading = true;
+
+	}
+
+	// 8 vertices to make a block
+	const positions = [
+		- w / 2, h / 2, - d / 2,
+		w / 2, h / 2, - d / 2,
+		w / 2, h / 2, d / 2,
+		- w / 2, h / 2, d / 2,
+		- w / 2, - h / 2, - d / 2,
+		w / 2, - h / 2, - d / 2,
+		w / 2, - h / 2, d / 2,
+		- w / 2, - h / 2, d / 2
+	];
+
+	const uvs = [
+		0.0, 0.0,
+		1.0, 0.0,
+		1.0, 1.0,
+		0.0, 1.0,
+		1.0, 1.0,
+		0.0, 1.0,
+		0.0, 0.0,
+		1.0, 0.0
+	];
+
+	bufferGeometry.setAttribute( 'position', new BufferAttribute( new Float32Array( positions ), 3 ) );
+	bufferGeometry.setAttribute( 'uv', new BufferAttribute( new Float32Array( uvs ), 2 ) );
+
+	// 6 squared faces to make a block, each made of 2 triangles (so 12 in total)
+	bufferGeometry.setIndex( [ 0, 3, 1, 1, 3, 2,
+	                           0, 4, 3, 3, 4, 7,
+	                           3, 6, 2, 3, 7, 6,
+	                           6, 7, 5, 5, 7, 4,
+	                           1, 5, 0, 0, 5, 4,
+	                           2, 5, 1, 6, 5, 2 ] );
+
+	// For the sake of having every mesh with the same internal structure,
+	// we create a geometry group for the material
+	bufferGeometry.addGroup( 0, 36, 0 );
+
+	bufferGeometry.uvsNeedUpdate = true;
+	bufferGeometry.computeVertexNormals();
+
+	let mesh = new Mesh( bufferGeometry, [ material ] );
+	mesh.applyMatrix4( getFinalTransform( ctx ) );
+	ctx.currentGroup.add( mesh );
+
+}
+
+function addCone( ctx, h, r, n ) {
+
+	if ( n < 3 ) {
+
+		// Silently skip if the cone doesn't have enough faces on its base
+		return;
+
+	}
+
+	const nbSides = n;
+
+	let bufferGeometry = new BufferGeometry();
+
+	let [ positions, uvs ] = makeVertexCircle( 0, r, nbSides );
+
+	// We add the pointy top of the cone
+	positions.push( 0, h, 0 );
+	uvs.push( 0.5, 0.5 );
+	bufferGeometry.setAttribute( 'position', new BufferAttribute( new Float32Array( positions ), 3 ) );
+	bufferGeometry.setAttribute( 'uv', new BufferAttribute( new Float32Array( uvs ), 2 ) );
+
+	let index = [];
+
+	// We weave faces across the circle (starting from the pointy top) to make a cone
+	for ( let i = 0; i < nbSides; i ++ ) {
+
+		index.push( nbSides, i, ( i + 1 ) % nbSides );
+
+	}
+
+	bufferGeometry.setIndex( index );
+
+	// For the sake of having every mesh with the same internal structure,
+	// we create a geometry group for the material
+	bufferGeometry.addGroup( 0, nbSides * 3, 0 );
+
+	bufferGeometry.uvsNeedUpdate = true;
+	bufferGeometry.computeVertexNormals();
+
+	let mesh = new Mesh( bufferGeometry, [ ctx.materialManager.getCurrentMaterial().phongMat ] );
+	mesh.applyMatrix4( getFinalTransform( ctx ) );
+	ctx.currentGroup.add( mesh );
+
+}
+
+function addCylinder( ctx, h, br, tr, n ) {
+
+	if ( n < 3 ) {
+
+		// Silently skip if the cylinder doesn't have enough faces on its base
+		return;
+
+	}
+
+	const nbSides = n;
+
+	// Bottom vertex circle
+	let [ positions, uvs ] = makeVertexCircle( 0, br, nbSides, 1.0 );
+
+	const topData = makeVertexCircle( h, tr, nbSides, 0.0 );
+
+	// Top vertex circle
+	positions.push( ...topData[ 0 ] );
+	uvs.push( ...topData[ 1 ] );
+
+	let bufferGeometry = new BufferGeometry();
+	bufferGeometry.setAttribute( 'position', new BufferAttribute( new Float32Array( positions ), 3 ) );
+	bufferGeometry.setAttribute( 'uv', new BufferAttribute( new Float32Array( uvs ), 2 ) );
+
+	const firstTopID = nbSides;
+	let index = [];
+
+	// We weave faces across both circles (up and down) to make a cylinder
+	for ( let i = 0; i < nbSides; i ++ ) {
+
+		  index.push( firstTopID + i, i, ( i + 1 ) % nbSides );
+		index.push( firstTopID + i, ( i + 1 ) % nbSides, firstTopID + ( ( i + 1 ) % nbSides ) );
+
+	}
+
+	bufferGeometry.setIndex( index );
+
+	// For the sake of having every mesh with the same internal structure,
+	// we create a geometry group for the material
+	bufferGeometry.addGroup( 0, nbSides * 6, 0 );
+
+	bufferGeometry.uvsNeedUpdate = true;
+	bufferGeometry.computeVertexNormals();
+
+	let mesh = new Mesh( bufferGeometry, [ ctx.materialManager.getCurrentMaterial().phongMat ] );
+	mesh.applyMatrix4( getFinalTransform( ctx ) );
+	ctx.currentGroup.add( mesh );
+
+}
+
+function addDisc( ctx, h, r, n ) {
+
+	if ( n < 3 ) {
+
+		// Silently skip if the disc doesn't have enough faces on its base
+		return;
+
+	}
+
+	const nbSides = n;
+
+	let bufferGeometry = new BufferGeometry();
+
+	let [ positions, uvs ] = makeVertexCircle( h, r, nbSides );
+	bufferGeometry.setAttribute( 'position', new BufferAttribute( new Float32Array( positions ), 3 ) );
+	bufferGeometry.setAttribute( 'uv', new BufferAttribute( new Float32Array( uvs ), 2 ) );
+
+	let index = [];
+
+	// We weave faces across all the circle (always using the first point) to make a disc
+	for ( let i = 1; i < nbSides; i ++ ) {
+
+		index.push( 0, i, ( i + 1 ) % nbSides );
+
+	}
+
+	bufferGeometry.setIndex( index );
+
+	// For the sake of having every mesh with the same internal structure,
+	// we create a geometry group for the material
+	bufferGeometry.addGroup( 0, nbSides * 3, 0 );
+
+	bufferGeometry.uvsNeedUpdate = true;
+	bufferGeometry.computeVertexNormals();
+
+	let mesh = new Mesh( bufferGeometry, [ ctx.materialManager.getCurrentMaterial().phongMat ] );
+	mesh.applyMatrix4( getFinalTransform( ctx ) );
+	ctx.currentGroup.add( mesh );
+
+}
+
+function addHemisphere( ctx, r, n ) {
+
+	if ( n < 2 ) {
+
+		// Silently skip if the hemisphere doesn't have enough density
+		return;
+
+	}
+
+	const nbSides = n * 4;
+	const nbSegments = n;
+	const deltaRad = Math.PI / ( nbSegments * 2 );
+
+	// Bottom vertex circle
+	let [ positions, uvs ] = makeVertexCircle( 0, r, nbSides, 1.0 );
+
+	let previousLevelID = 0;
+	let currentLevelID = 0;
+
+	let levelData = null;
+	let index = [];
+
+	// Now that we have the base of the emisphere: we build up from there to the top
+	for ( let h = 1; h < nbSegments; h ++ ) {
+
+		currentLevelID = previousLevelID + nbSides;
+		const nH = Math.sin( deltaRad * h );
+		levelData = makeVertexCircle( nH * r, Math.cos( deltaRad * h ) * r, nbSides, nH );
+
+		positions.push( ...levelData[ 0 ] );
+		uvs.push( ...levelData[ 1 ] );
+
+		// We weave faces across both circles (up and down) to make a cylinder
+		for ( let i = 0; i < nbSides; i ++ ) {
+
+			index.push( currentLevelID + i, previousLevelID + i, previousLevelID + ( ( i + 1 ) % nbSides ) );
+			index.push( currentLevelID + i, previousLevelID + ( ( i + 1 ) % nbSides ), currentLevelID + ( ( i + 1 ) % nbSides ) );
+
+		}
+
+		previousLevelID = currentLevelID;
+
+	}
+
+	// We add the pointy top of the hemisphere
+	positions.push( 0, r, 0 );
+	uvs.push( 0.5, 0.0 );
+
+	const topID = positions.length / 3 - 1;
+
+	// We weave faces across the circle (starting from the pointy top) to make a cone
+	for ( let i = 0; i < nbSides; i ++ ) {
+
+		index.push( topID, previousLevelID + i, previousLevelID + ( ( i + 1 ) % nbSides ) );
+
+	}
+
+	let bufferGeometry = new BufferGeometry();
+	bufferGeometry.setAttribute( 'position', new BufferAttribute( new Float32Array( positions ), 3 ) );
+	bufferGeometry.setAttribute( 'uv', new BufferAttribute( new Float32Array( uvs ), 2 ) );
+	bufferGeometry.setIndex( index );
+
+	// For the sake of having every mesh with the same internal structure,
+	// we create a geometry group for the material
+	bufferGeometry.addGroup( 0, bufferGeometry.getIndex().count, 0 );
+
+	bufferGeometry.uvsNeedUpdate = true;
+	bufferGeometry.computeVertexNormals();
+
+	let mesh = new Mesh( bufferGeometry, [ ctx.materialManager.getCurrentMaterial().phongMat ] );
+	mesh.applyMatrix4( getFinalTransform( ctx ) );
+	ctx.currentGroup.add( mesh );
+
+}
+
+function addSphere( ctx, r, n ) {
+
+	if ( n < 2 ) {
+
+		// Silently skip if the hemisphere doesn't have enough density
+		return;
+
+	}
+
+	const nbSides = n * 4;
+	const nbSegments = n * 2;
+
+	let geometry = new SphereGeometry( r, nbSides, nbSegments );
+	geometry.addGroup( 0, geometry.getIndex().count, 0 );
+
+	let mesh = new Mesh( geometry, [ ctx.materialManager.getCurrentMaterial().phongMat ] );
+	mesh.applyMatrix4( getFinalTransform( ctx ) );
+	ctx.currentGroup.add( mesh );
 
 }
 
@@ -702,24 +1033,24 @@ function flattenGroup( group ) {
 
 class RWXMaterial {
 
-	// Material related properties start here
-	color = [ 0.0, 0.0, 0.0 ]; // Red, Green, Blue
-	surface = [ 0.0, 0.0, 0.0 ]; // Ambience, Diffusion, Specularity
-	opacity = 1.0;
-	lightsampling = LightSampling.FACET;
-	geometrysampling = GeometrySampling.SOLID;
-	texturemodes = [ TextureMode
-		.LIT,
-	]; // There's possibly more than one mode enabled at a time (hence why we use an array)
-	materialmode = MaterialMode.NULL; // Neither NONE nor DOUBLE: we only render one side of the polygon
-	texture = null;
-	mask = null;
-	collision = true;
-	// End of material related properties
-
-	transform = new Matrix4();
-
 	constructor() {
+
+	  // Material related properties start here
+		this.color = [ 0.0, 0.0, 0.0 ]; // Red, Green, Blue
+		this.surface = [ 0.0, 0.0, 0.0 ]; // Ambience, Diffusion, Specularity
+		this.opacity = 1.0;
+		this.lightsampling = LightSampling.FACET;
+		this.geometrysampling = GeometrySampling.SOLID;
+		this.texturemodes = [ TextureMode
+			.LIT,
+		]; // There's possibly more than one mode enabled at a time (hence why we use an array)
+		this.materialmode = MaterialMode.NULL; // Neither NONE nor DOUBLE: we only render one side of the polygon
+		this.texture = null;
+		this.mask = null;
+		this.collision = true;
+		// End of material related properties
+
+		this.transform = new Matrix4();
 
 	}
 
@@ -780,18 +1111,6 @@ class RWXMaterial {
 
 class RWXMaterialManager {
 
-	folder
-	textureExtension
-	maskExtension
-	jsZip
-	jsZipUtils
-
-	currentRWXMaterial = new RWXMaterial();
-	threeMaterialMap = {};
-	currentMaterialID = null;
-	currentMaterialList = [];
-	currentMaterialSignature = "";
-
 	constructor( folder, textureExtension = "jpg", maskExtension =
 	  "zip", jsZip = null, jsZipUtils = null ) {
 
@@ -800,6 +1119,13 @@ class RWXMaterialManager {
 		this.maskExtension = maskExtension;
 		this.jsZip = jsZip;
 		this.jsZipUtils = jsZipUtils;
+
+		this.currentRWXMaterial = new RWXMaterial();
+		this.threeMaterialMap = {};
+		this.currentMaterialID = null;
+		this.currentMaterialList = [];
+		this.currentMaterialSignature = "";
+
 	}
 
 	getCurrentMaterialID() {
@@ -864,49 +1190,55 @@ class RWXMaterialManager {
 
 class RWXLoader extends Loader {
 
-	integerRegex = /([-+]?[0-9]+)/g;
-	floatRegex = /([+-]?([0-9]+([.][0-9]*)?|[.][0-9]+))/g;
-	nonCommentRegex = /^(.*)#/g;
-	clumpbeginRegex = /^ *(clumpbegin).*$/i;
-	clumpendRegex = /^ *(clumpend).*$/i;
-	transformbeginRegex = /^ *(transformbegin).*$/i;
-	transformendRegex = /^ *(transformend).*$/i;
-	protobeginRegex = /^ *(protobegin) +([A-Za-z0-9_\-]+).*$/i;
-	protoinstanceRegex = /^ *(protoinstance) +([A-Za-z0-9_\-]+).*$/i;
-	protoendRegex = /^ *(protoend).*$/i;
-	vertexRegex = /^ *(vertex|vertexext)(( +[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)){3}) *(uv(( +[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)){2}))?.*$/i;
-	polygonRegex = /^ *(polygon|polygonext)( +[0-9]+)(( +[0-9]+)+) ?.*$/i;
-	quadRegex = /^ *(quad|quadext)(( +([0-9]+)){4}).*$/i;
-	triangleRegex = /^ *(triangle|triangleext)(( +([0-9]+)){3}).*$/i;
-	textureRegex = /^ *(texture) +([A-Za-z0-9_\-]+) *(mask *([A-Za-z0-9_\-]+))?.*$/i;
-	colorRegex = /^ *(color)(( +[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)){3}).*$/i;
-	opacityRegex = /^ *(opacity)( +[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)).*$/i;
-	identityRegex = /^ *(identity) *$/i;
-	transformRegex = /^ *(transform)(( +[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)){16}).*$/i;
-	translateRegex = /^ *(translate)(( +[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)){3}).*$/i;
-	scaleRegex = /^ *(scale)(( +[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)){3}).*$/i;
-	rotateRegex = /^ *(rotate)(( +[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)){4})$/i;
-	surfaceRegex = /^ *(surface)(( +[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)){3}).*$/i;
-	ambientRegex = /^ *(ambient)( +[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)).*$/i;
-	diffuseRegex = /^ *(diffuse)( +[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)).*$/i;
-	specularRegex = /^ *(specular)( +[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)).*$/i;
-	materialModeRegex = /^ *((add)?materialmode(s)?) +([A-Za-z0-9_\-]+).*$/i;
-	collisionRegex = /^ *(collision) +(on|off).*$/i;
-	lightsamplingRegex = /^ *(lightsampling) +(facet|vertex).*$/i;
-	geometrysamplingRegex = /^ *(geometrysampling) +(pointcloud|wireframe|solid).*$/i;
-	axisalignmentRegex = /^ *(axisalignment) +(none|zorientx|zorienty|xyz).*$/i;
-
-	jsZip = null;
-	jsZipUtils = null;
-	textureExtension = 'jpg';
-	maskExtension = 'zip';
-
-	waitFullLoad = false;
-	flatten = false;
-
 	constructor( manager ) {
 
 		super( manager );
+
+		this.integerRegex = /([-+]?[0-9]+)/g;
+		this.floatRegex = /([+-]?([0-9]+([.][0-9]*)?|[.][0-9]+))/g;
+		this.nonCommentRegex = /^(.*)#/g;
+		this.clumpbeginRegex = /^ *(clumpbegin).*$/i;
+		this.clumpendRegex = /^ *(clumpend).*$/i;
+		this.transformbeginRegex = /^ *(transformbegin).*$/i;
+		this.transformendRegex = /^ *(transformend).*$/i;
+		this.protobeginRegex = /^ *(protobegin) +([A-Za-z0-9_\-]+).*$/i;
+		this.protoinstanceRegex = /^ *(protoinstance) +([A-Za-z0-9_\-]+).*$/i;
+		this.protoendRegex = /^ *(protoend).*$/i;
+		this.vertexRegex = /^ *(vertex|vertexext)(( +[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)){3}) *(uv(( +[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)){2}))?.*$/i;
+		this.polygonRegex = /^ *(polygon|polygonext)( +[0-9]+)(( +[0-9]+)+) ?.*$/i;
+		this.quadRegex = /^ *(quad|quadext)(( +([0-9]+)){4}).*$/i;
+		this.triangleRegex = /^ *(triangle|triangleext)(( +([0-9]+)){3}).*$/i;
+		this.textureRegex = /^ *(texture) +([A-Za-z0-9_\-]+) *(mask *([A-Za-z0-9_\-]+))?.*$/i;
+		this.colorRegex = /^ *(color)(( +[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)){3}).*$/i;
+		this.opacityRegex = /^ *(opacity)( +[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)).*$/i;
+		this.identityRegex = /^ *(identity) *$/i;
+		this.transformRegex = /^ *(transform)(( +[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)){16}).*$/i;
+		this.translateRegex = /^ *(translate)(( +[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)){3}).*$/i;
+		this.scaleRegex = /^ *(scale)(( +[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)){3}).*$/i;
+		this.rotateRegex = /^ *(rotate)(( +[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)){4})$/i;
+		this.surfaceRegex = /^ *(surface)(( +[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)){3}).*$/i;
+		this.ambientRegex = /^ *(ambient)( +[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)).*$/i;
+		this.diffuseRegex = /^ *(diffuse)( +[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)).*$/i;
+		this.specularRegex = /^ *(specular)( +[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)).*$/i;
+		this.materialModeRegex = /^ *((add)?materialmode(s)?) +([A-Za-z0-9_\-]+).*$/i;
+		this.collisionRegex = /^ *(collision) +(on|off).*$/i;
+		this.lightsamplingRegex = /^ *(lightsampling) +(facet|vertex).*$/i;
+		this.geometrysamplingRegex = /^ *(geometrysampling) +(pointcloud|wireframe|solid).*$/i;
+		this.axisalignmentRegex = /^ *(axisalignment) +(none|zorientx|zorienty|xyz).*$/i;
+		this.blockRegex = /^ *(block)(( +[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)){3}).*$/i;
+		this.coneRegex = /^ *(cone)(( +[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)){2}( +[-+]?[0-9]+)).*$/i;
+		this.cylinderRegex = /^ *(cylinder)(( +[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)){3}( +[-+]?[0-9]+)).*$/i;
+		this.discRegex = /^ *(disc)(( +[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)){2}( +[-+]?[0-9]+)).*$/i;
+		this.hemisphereRegex = /^ *(hemisphere)(( +[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+))( +[-+]?[0-9]+)).*$/i;
+		this.sphereRegex = /^ *(sphere)(( +[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+))( +[-+]?[0-9]+)).*$/i;
+
+		this.jsZip = null;
+		this.jsZipUtils = null;
+		this.textureExtension = 'jpg';
+		this.maskExtension = 'zip';
+
+		this.waitFullLoad = false;
+		this.flatten = false;
 
 	}
 
@@ -940,7 +1272,7 @@ class RWXLoader extends Loader {
 
 	// Wether or not to wait for full loading before returning the objet, textures are loaded asynchronously by default,
 	// set this to 'true' for the loader to only return the object once it's fully loaded
-	setWaitFullLoad ( waitFullLoad ) {
+	setWaitFullLoad( waitFullLoad ) {
 
 		this.waitFullLoad = waitFullLoad;
 
@@ -950,7 +1282,7 @@ class RWXLoader extends Loader {
 
 	// Wether or not to flatten the objet, the object will consist of nested groups by default,
 	// set this to 'true' to get a single mesh holding everything
-	setFlatten ( flatten ) {
+	setFlatten( flatten ) {
 
 		this.flatten = flatten;
 
@@ -971,11 +1303,11 @@ class RWXLoader extends Loader {
 
 			try {
 
-				scope.parse ( text, resourcePath, function ( loadedObject ) {
+				scope.parse( text, resourcePath, function ( loadedObject ) {
 
 					onLoad( loadedObject );
 
-				});
+				} );
 
 			} catch ( e ) {
 
@@ -1551,6 +1883,102 @@ class RWXLoader extends Loader {
 
 			}
 
+			res = this.blockRegex.exec( line );
+			if ( res != null ) {
+
+				let bprops = [];
+				res[ 2 ].match( this.floatRegex ).forEach( ( x ) => {
+
+					bprops.push( parseFloat( x ) );
+
+				} );
+
+				addBlock( ctx, bprops[ 0 ], bprops[ 1 ], bprops[ 2 ] );
+
+				continue;
+
+			}
+
+			res = this.coneRegex.exec( line );
+			if ( res != null ) {
+
+				let cprops = [];
+				res[ 2 ].match( this.floatRegex ).forEach( ( x, i ) => {
+
+					cprops.push( i == 2 ? parseInt( x ) : parseFloat( x ) );
+
+				} );
+
+				addCone( ctx, cprops[ 0 ], cprops[ 1 ], cprops[ 2 ] );
+
+				continue;
+
+			}
+
+			res = this.cylinderRegex.exec( line );
+			if ( res != null ) {
+
+				let cprops = [];
+				res[ 2 ].match( this.floatRegex ).forEach( ( x, i ) => {
+
+					cprops.push( i == 3 ? parseInt( x ) : parseFloat( x ) );
+
+				} );
+
+				addCylinder( ctx, cprops[ 0 ], cprops[ 1 ], cprops[ 2 ], cprops[ 3 ] );
+
+				continue;
+
+			}
+
+			res = this.discRegex.exec( line );
+			if ( res != null ) {
+
+				let dprops = [];
+				res[ 2 ].match( this.floatRegex ).forEach( ( x, i ) => {
+
+					dprops.push( i == 2 ? parseInt( x ) : parseFloat( x ) );
+
+				} );
+
+				addDisc( ctx, dprops[ 0 ], dprops[ 1 ], dprops[ 2 ] );
+
+				continue;
+
+			}
+
+			res = this.hemisphereRegex.exec( line );
+			if ( res != null ) {
+
+				let hprops = [];
+				res[ 2 ].match( this.floatRegex ).forEach( ( x, i ) => {
+
+					hprops.push( i == 1 ? parseInt( x ) : parseFloat( x ) );
+
+				} );
+
+				addHemisphere( ctx, hprops[ 0 ], hprops[ 1 ] );
+
+				continue;
+
+			}
+
+			res = this.sphereRegex.exec( line );
+			if ( res != null ) {
+
+				let sprops = [];
+				res[ 2 ].match( this.floatRegex ).forEach( ( x, i ) => {
+
+					sprops.push( i == 1 ? parseInt( x ) : parseFloat( x ) );
+
+				} );
+
+				addSphere( ctx, sprops[ 0 ], sprops[ 1 ] );
+
+				continue;
+
+			}
+
 		}
 
 		// We're done, return the root group to get the whole object, we take the decameter unit into account
@@ -1559,11 +1987,11 @@ class RWXLoader extends Loader {
 		if ( this.waitFullLoad ) {
 
 			// Wait all mask futures before returning loaded object
-			Promise.all( ctx.loadingPromises.flat() ).then( ( results ) => {
+			Promise.all( ctx.loadingPromises.flat() ).then( ( ) => {
 
 				onParse( this.flatten ? flattenGroup( ctx.groupStack[ 0 ] ) : ctx.groupStack[ 0 ] );
 
-			});
+			} );
 
 		} else {
 
