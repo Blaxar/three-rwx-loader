@@ -1201,8 +1201,8 @@ class RWXLoader extends Loader {
 		this.clumpendRegex = /^ *(clumpend).*$/i;
 		this.transformbeginRegex = /^ *(transformbegin).*$/i;
 		this.transformendRegex = /^ *(transformend).*$/i;
-		this.protobeginRegex = /^ *(protobegin) +([A-Za-z0-9_\-]+).*$/i;
-		this.protoinstanceRegex = /^ *(protoinstance) +([A-Za-z0-9_\-]+).*$/i;
+		this.protobeginRegex = /^ *(protobegin) +([A-Za-z0-9_\-\.]+).*$/i;
+		this.protoinstanceRegex = /^ *(protoinstance) +([A-Za-z0-9_\-\.]+).*$/i;
 		this.protoendRegex = /^ *(protoend).*$/i;
 		this.vertexRegex = /^ *(vertex|vertexext)(( +[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)){3}) *(uv(( +[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)){2}))?.*$/i;
 		this.polygonRegex = /^ *(polygon|polygonext)( +[0-9]+)(( +[0-9]+)+) ?.*$/i;
