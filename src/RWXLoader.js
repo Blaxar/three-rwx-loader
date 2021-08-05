@@ -105,14 +105,14 @@ function triangulateFacesWithShapes( vertices, uvs, loop ) {
 	let loopNormal = new Vector3( 0.0, 0.0, 0.0 );
 
 	// Compute loop normal using Newell's Method
-	for ( let i = 0, len = loop.length; i < len; i ++ ) {
+	for ( let i = 0; i < l; i ++ ) {
 
 		const currentVertex = new Vector3( vertices[ loop[ i ] * 3 ], vertices[ loop[ i ] * 3 + 1 ], vertices[ loop[ i ] * 3 + 2 ] );
 
 		let nextVertex = new Vector3(
-			vertices[ loop[ ( ( i + 1 ) % len ) ] * 3 ],
-			vertices[ loop[ ( ( i + 1 ) % len ) ] * 3 + 1 ],
-		  vertices[ loop[ ( ( i + 1 ) % len ) ] * 3 + 2 ]
+			vertices[ loop[ ( ( i + 1 ) % l ) ] * 3 ],
+			vertices[ loop[ ( ( i + 1 ) % l ) ] * 3 + 1 ],
+			vertices[ loop[ ( ( i + 1 ) % l ) ] * 3 + 2 ]
 		);
 
 		loopNormal.x += ( currentVertex.y - nextVertex.y ) * ( currentVertex.z + nextVertex.z );
@@ -142,7 +142,6 @@ function triangulateFacesWithShapes( vertices, uvs, loop ) {
 		const currentVertex = new Vector3( vertices[ loop[ i ] * 3 ], vertices[ loop[ i ] * 3 + 1 ], vertices[ loop[ i ] * 3 + 2 ] );
 		_tmp.subVectors( currentVertex, _ctr );
 		projVertices.push( new Vector2( _tmp.dot( _x ), _tmp.dot( _y ) ) );
-		newUvs.push( uvs[ loop[ i ] * 2 ], uvs[ loop[ i ] * 2 + 1 ] );
 
 	}
 
@@ -167,6 +166,8 @@ function triangulateFacesWithShapes( vertices, uvs, loop ) {
 			vertices[ vertexMap[ i ] * 3 + 1 ],
 			vertices[ vertexMap[ i ] * 3 + 2 ]
 		);
+
+		newUvs.push( uvs[ vertexMap[ i ] * 2 ], uvs[ vertexMap[ i ] * 2 + 1 ] );
 
 	}
 
@@ -959,7 +960,7 @@ function mergeGeometryRecursive( group, ctx, transform = group.matrix ) {
 			}
 
 			const originalVertices = child.geometry.getAttribute( 'position' ).array;
-			const faceOffset = ctx.positions.length / 3;
+			const vertexOffset = ctx.positions.length / 3;
 
 			// Import the current geometry (vertices and faces) from the child into the final buffer,
 			// apply local transformations if any
@@ -979,7 +980,7 @@ function mergeGeometryRecursive( group, ctx, transform = group.matrix ) {
 
 			ctx.indices.push( ...geometryIndices.map( ( value ) => {
 
-				return value + faceOffset;
+				return value + vertexOffset;
 
 			} ) );
 
