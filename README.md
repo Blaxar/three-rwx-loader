@@ -47,6 +47,12 @@ rwxLoader.load('object.rwx', (rwx) => {
 $ npm test
 ```
 
+## Linting
+
+```bash
+$ npx eslint src/RWXLoader.js
+```
+
 ### References:
 
 - http://www.tnlc.com/rw/rwx.html

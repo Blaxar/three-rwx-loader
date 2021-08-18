@@ -184,6 +184,23 @@ function triangulateFacesWithShapes( vertices, uvs, loop ) {
 
 }
 
+function makeMaskPromise( bmpURI, phongMat, loader ) {
+
+	return new Promise( ( resolveMask ) => {
+
+		loader.load( bmpURI, ( maskTexture ) => {
+
+			maskTexture.wrapS = RepeatWrapping;
+			maskTexture.wrapT = RepeatWrapping;
+			phongMat.alphaMap = maskTexture;
+			phongMat.needsUpdate = true;
+			resolveMask( maskTexture );
+
+		} );
+
+	} );
+
+}
 
 function applyTextureToPhong( phongMat, folder, textureName, textureExtension = "jpg", maskName = null,
 	maskExtension = "zip", jsZip = null, jsZipUtils = null, loadingPromises = [] ) {
@@ -199,6 +216,15 @@ function applyTextureToPhong( phongMat, folder, textureName, textureExtension = 
 			texture.wrapT = RepeatWrapping;
 			phongMat.map = texture;
 			phongMat.needsUpdate = true;
+
+			if ( texture.image.height >= texture.image.width * 2 ) {
+
+				// Dealing with an animated texture
+				phongMat.userData.rwx[ 'animation' ] = { yTiles: texture.image.height / texture.image.width, yHeight: texture.image.width / texture.image.height, step: 0 };
+				texture.repeat.set( 1, phongMat.userData.rwx.animation.yHeight );
+
+			}
+
 			resolveTex( texture );
 
 		} );
@@ -264,13 +290,7 @@ function applyTextureToPhong( phongMat, folder, textureName, textureExtension = 
 				bmpURI = bmpURI.concat( btoa( dataStr ) );
 
 				// Make a texture out of the bmp mask, apply it to the material
-				let maskTexture = loader.load( bmpURI );
-				maskTexture.wrapS = RepeatWrapping;
-				maskTexture.wrapT = RepeatWrapping;
-				phongMat.alphaMap = maskTexture;
-
-				// Notify three.js that this material has been updated (to re-render it)
-				phongMat.needsUpdate = true;
+				return makeMaskPromise( bmpURI, phongMat, loader );
 
 			}, function error( e ) {
 
@@ -280,20 +300,8 @@ function applyTextureToPhong( phongMat, folder, textureName, textureExtension = 
 
 		} else if ( maskExtension != 'zip' ) {
 
-			loadingPromises.push( new Promise( ( resolveMask ) => {
-
-				let bmpPath = folder + '/' + maskName + '.' + maskExtension;
-				loader.load( bmpPath, ( maskTexture ) => {
-
-					maskTexture.wrapS = RepeatWrapping;
-					maskTexture.wrapT = RepeatWrapping;
-					phongMat.alphaMap = maskTexture;
-					phongMat.needsUpdate = true;
-					resolveMask( maskTexture );
-
-				} );
-
-			} ) );
+			const bmpPath = folder + '/' + maskName + '.' + maskExtension;
+			loadingPromises.push( makeMaskPromise( bmpPath, phongMat, loader ) );
 
 		}
 
@@ -1187,6 +1195,24 @@ class RWXMaterialManager {
 
 	}
 
+	texturesNextFrame() {
+
+		for ( const pair of Object.entries( this.threeMaterialMap ) ) {
+
+			const animation = pair[ 1 ].phongMat.userData.rwx.animation;
+
+			if ( animation !== undefined ) {
+
+				animation.step = ( animation.step + 1 ) % animation.yTiles;
+				pair[ 1 ].phongMat.map.offset.y = animation.step * animation.yHeight;
+				pair[ 1 ].phongMat.needsUpdate = true;
+
+			}
+
+		}
+
+	}
+
 }
 
 class RWXLoader extends Loader {
@@ -1240,6 +1266,7 @@ class RWXLoader extends Loader {
 
 		this.waitFullLoad = false;
 		this.flatten = false;
+		this.rwxMaterialManager = null;
 
 	}
 
@@ -1286,6 +1313,16 @@ class RWXLoader extends Loader {
 	setFlatten( flatten ) {
 
 		this.flatten = flatten;
+
+		return this;
+
+	}
+
+	// Set a custom RWXMaterialManager to be used by the loader, one will be internally instanciated by default
+	// if none is provided
+	setRWXMaterialManager( rwxMgr ) {
+
+		this.rwxMaterialManager = rwxMgr;
 
 		return this;
 
@@ -1358,7 +1395,7 @@ class RWXLoader extends Loader {
 
 			loadingPromises: [],
 
-			materialManager: new RWXMaterialManager( textureFolderPath, this.textureExtension, this.maskExtension, this.jsZip, this.jsZipUtils )
+			materialManager: this.rwxMaterialManager !== null ? this.rwxMaterialManager : new RWXMaterialManager( textureFolderPath, this.textureExtension, this.maskExtension, this.jsZip, this.jsZipUtils )
 
 		};
 
@@ -2006,5 +2043,5 @@ class RWXLoader extends Loader {
 }
 
 export default RWXLoader;
-export { RWXMaterial, RWXMaterialManager, makeThreeMaterial, applyTextureToPhong,
+export { RWXMaterial, RWXMaterialManager, makeThreeMaterial, makeMaskPromise, applyTextureToPhong,
 	LightSampling, GeometrySampling, TextureMode, MaterialMode, flattenGroup };
