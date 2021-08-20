@@ -217,7 +217,7 @@ function applyTextureToPhong( phongMat, folder, textureName, textureExtension = 
 			phongMat.map = texture;
 			phongMat.needsUpdate = true;
 
-			if ( texture.image.height >= texture.image.width * 2 ) {
+			if ( texture.image.height >= texture.image.width * 3 ) {
 
 				// Dealing with an animated texture
 				phongMat.userData.rwx[ 'animation' ] = { yTiles: texture.image.height / texture.image.width, yHeight: texture.image.width / texture.image.height, step: 0 };
