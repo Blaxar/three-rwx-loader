@@ -221,6 +221,7 @@ function applyTextureToPhong( phongMat, folder, textureName, textureExtension = 
 			if ( texture.image.height % texture.image.width === 0 ) {
 
 				phongMat.userData.rwx[ 'animation' ] = { yTiles: texture.image.height / texture.image.width, yHeight: texture.image.width / texture.image.height, step: 0 };
+				texture.offset.y = ( 1.0 - phongMat.userData.rwx.animation.yHeight );
 				texture.repeat.set( 1, phongMat.userData.rwx.animation.yHeight );
 
 			}
@@ -1204,7 +1205,7 @@ class RWXMaterialManager {
 			if ( animation !== undefined ) {
 
 				animation.step = ( animation.step + 1 ) % animation.yTiles;
-				pair[ 1 ].phongMat.map.offset.y = animation.step * animation.yHeight;
+				pair[ 1 ].phongMat.map.offset.y = ( 1.0 - animation.yHeight ) - animation.step * animation.yHeight;
 				pair[ 1 ].phongMat.needsUpdate = true;
 
 			}
