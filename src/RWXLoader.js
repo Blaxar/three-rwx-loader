@@ -12,6 +12,7 @@ import {
 	Vector4,
 	MathUtils,
 	MeshPhongMaterial,
+	MeshBasicMaterial,
 	BufferGeometry,
 	Quaternion,
 	Plane,
@@ -184,7 +185,7 @@ function triangulateFacesWithShapes( vertices, uvs, loop ) {
 
 }
 
-function makeMaskPromise( bmpURI, phongMat, loader ) {
+function makeMaskPromise( bmpURI, threeMat, loader ) {
 
 	return new Promise( ( resolveMask ) => {
 
@@ -192,8 +193,8 @@ function makeMaskPromise( bmpURI, phongMat, loader ) {
 
 			maskTexture.wrapS = RepeatWrapping;
 			maskTexture.wrapT = RepeatWrapping;
-			phongMat.alphaMap = maskTexture;
-			phongMat.needsUpdate = true;
+			threeMat.alphaMap = maskTexture;
+			threeMat.needsUpdate = true;
 			resolveMask( maskTexture );
 
 		} );
@@ -202,7 +203,7 @@ function makeMaskPromise( bmpURI, phongMat, loader ) {
 
 }
 
-function applyTextureToPhong( phongMat, folder, textureName, textureExtension = "jpg", maskName = null,
+function applyTextureToMat( threeMat, folder, textureName, textureExtension = "jpg", maskName = null,
 	maskExtension = "zip", jsZip = null, jsZipUtils = null, loadingPromises = [] ) {
 
 	let loader = new TextureLoader();
@@ -214,15 +215,15 @@ function applyTextureToPhong( phongMat, folder, textureName, textureExtension = 
 
 			texture.wrapS = RepeatWrapping;
 			texture.wrapT = RepeatWrapping;
-			phongMat.map = texture;
-			phongMat.needsUpdate = true;
+			threeMat.map = texture;
+			threeMat.needsUpdate = true;
 
 			// If the height is nicely divisible by the width: it's an animated texture
 			if ( texture.image.height % texture.image.width === 0 ) {
 
-				phongMat.userData.rwx[ 'animation' ] = { yTiles: texture.image.height / texture.image.width, yHeight: texture.image.width / texture.image.height, step: 0 };
-				texture.offset.y = ( 1.0 - phongMat.userData.rwx.animation.yHeight );
-				texture.repeat.set( 1, phongMat.userData.rwx.animation.yHeight );
+				threeMat.userData.rwx[ 'animation' ] = { yTiles: texture.image.height / texture.image.width, yHeight: texture.image.width / texture.image.height, step: 0 };
+				texture.offset.y = ( 1.0 - threeMat.userData.rwx.animation.yHeight );
+				texture.repeat.set( 1, threeMat.userData.rwx.animation.yHeight );
 
 			}
 
@@ -234,8 +235,8 @@ function applyTextureToPhong( phongMat, folder, textureName, textureExtension = 
 
 	if ( maskName != null ) {
 
-		phongMat.alphaTest = 0.2;
-		phongMat.transparent = true;
+		threeMat.alphaTest = 0.2;
+		threeMat.transparent = true;
 
 		if ( maskExtension == "zip" && jsZip != null && jsZipUtils != null ) {
 
@@ -291,7 +292,7 @@ function applyTextureToPhong( phongMat, folder, textureName, textureExtension = 
 				bmpURI = bmpURI.concat( btoa( dataStr ) );
 
 				// Make a texture out of the bmp mask, apply it to the material
-				return makeMaskPromise( bmpURI, phongMat, loader );
+				return makeMaskPromise( bmpURI, threeMat, loader );
 
 			}, function error( e ) {
 
@@ -302,7 +303,7 @@ function applyTextureToPhong( phongMat, folder, textureName, textureExtension = 
 		} else if ( maskExtension != 'zip' ) {
 
 			const bmpPath = folder + '/' + maskName + '.' + maskExtension;
-			loadingPromises.push( makeMaskPromise( bmpPath, phongMat, loader ) );
+			loadingPromises.push( makeMaskPromise( bmpPath, threeMat, loader ) );
 
 		}
 
@@ -311,7 +312,7 @@ function applyTextureToPhong( phongMat, folder, textureName, textureExtension = 
 }
 
 function makeThreeMaterial( rwxMaterial, folder, textureExtension = "jpg", maskExtension =
-"zip", jsZip = null, jsZipUtils = null ) {
+"zip", jsZip = null, jsZipUtils = null, useBasicMaterial = false ) {
 
 	let materialDict = { name: rwxMaterial.getMatSignature() };
 
@@ -335,16 +336,6 @@ function makeThreeMaterial( rwxMaterial, folder, textureExtension = "jpg", maskE
 
 	}
 
-	if ( rwxMaterial.lightsampling == LightSampling.FACET ) {
-
-		materialDict[ 'flatShading' ] = true;
-
-	} else if ( rwxMaterial.lightsampling == LightSampling.VERTEX ) {
-
-		materialDict[ 'flatShading' ] = false;
-
-	}
-
 	if ( rwxMaterial.geometrysampling < GeometrySampling.SOLID ) {
 
 		// For the time being: we treat 'wireframe' and 'pointcloud' the same, as 'pointcloud' is not yet trivially
@@ -357,38 +348,53 @@ function makeThreeMaterial( rwxMaterial, folder, textureExtension = "jpg", maskE
 
 	}
 
-	// The specular value in a Phong material is expressed using an hexadecimal value
-	// holding on 3 bytes, each representing a different color channel.
-	// Without any prior knowledge: we safely assume a white light instead
-	const whiteSpecular = Math.trunc( rwxMaterial.surface[ 2 ] * 255 );
-	materialDict[ 'specular' ] = ( whiteSpecular << 16 ) + ( whiteSpecular << 8 ) + whiteSpecular;
+	if ( ! useBasicMaterial ) {
 
-	// Same thing for the emissive value
-	const whiteEmissive = Math.trunc( rwxMaterial.surface[ 1 ] );
-	materialDict[ 'emissive' ] = ( whiteEmissive << 16 ) + ( whiteEmissive << 8 ) + whiteEmissive;
+		if ( rwxMaterial.lightsampling == LightSampling.FACET ) {
 
-	materialDict[ 'shininess' ] = 30; // '30' is the demo's default Phong material shininess value
+			materialDict[ 'flatShading' ] = true;
+
+		} else if ( rwxMaterial.lightsampling == LightSampling.VERTEX ) {
+
+			materialDict[ 'flatShading' ] = false;
+
+		}
+
+		// The specular value in a Phong material is expressed using an hexadecimal value
+		// holding on 3 bytes, each representing a different color channel.
+		// Without any prior knowledge: we safely assume a white light instead
+		const whiteSpecular = Math.trunc( rwxMaterial.surface[ 2 ] * 255 );
+		materialDict[ 'specular' ] = ( whiteSpecular << 16 ) + ( whiteSpecular << 8 ) + whiteSpecular;
+
+		// Same thing for the emissive value
+		const whiteEmissive = Math.trunc( rwxMaterial.surface[ 1 ] );
+		materialDict[ 'emissive' ] = ( whiteEmissive << 16 ) + ( whiteEmissive << 8 ) + whiteEmissive;
+
+		materialDict[ 'shininess' ] = 30; // '30' is the demo's default Phong material shininess value
+
+	}
+
 	materialDict[ 'opacity' ] = rwxMaterial.opacity;
 
-	let phongMat = new MeshPhongMaterial( materialDict );
-	phongMat.userData.rwx = { material: rwxMaterial.clone() };
+	let threeMat = useBasicMaterial ? new MeshBasicMaterial( materialDict ) : new MeshPhongMaterial( materialDict );
+	threeMat.userData.rwx = { material: rwxMaterial.clone() };
 	let loadingPromises = [];
 
-	phongMat.userData[ 'collision' ] = rwxMaterial.collision;
+	threeMat.userData[ 'collision' ] = rwxMaterial.collision;
 
 	if ( rwxMaterial.texture == null ) {
 
-		phongMat.color.set( rwxMaterial.getColorHexValue() );
+		threeMat.color.set( rwxMaterial.getColorHexValue() );
 
 	} else {
 
-		applyTextureToPhong( phongMat, folder, rwxMaterial.texture, textureExtension, rwxMaterial.mask,
+		applyTextureToMat( threeMat, folder, rwxMaterial.texture, textureExtension, rwxMaterial.mask,
 			maskExtension, jsZip, jsZipUtils, loadingPromises );
 
 	}
 
 	return {
-		phongMat: phongMat,
+		threeMat: threeMat,
 		loadingPromises: loadingPromises,
 	};
 
@@ -433,7 +439,7 @@ function makeMeshToCurrentGroup( ctx ) {
 
 		ctx.loadingPromises = ctx.loadingPromises.concat( ctx.materialManager.getCurrentMaterialList().map( res => res.loadingPromises ) );
 
-		const mesh = new Mesh( ctx.currentBufferGeometry, ctx.materialManager.getCurrentMaterialList().map( res => res.phongMat ) );
+		const mesh = new Mesh( ctx.currentBufferGeometry, ctx.materialManager.getCurrentMaterialList().map( res => res.threeMat ) );
 		ctx.currentGroup.add( mesh );
 
 	}
@@ -579,9 +585,9 @@ function makeVertexCircle( h, r, n, v = null ) {
 function addBlock( ctx, w, h, d ) {
 
 	let bufferGeometry = new BufferGeometry();
-	let material = ctx.materialManager.getCurrentMaterial().phongMat;
+	let material = ctx.materialManager.getCurrentMaterial().threeMat;
 
-	if ( ! material.flatShading ) {
+	if ( material.flatShading !== undefined && ! material.flatShading ) {
 
 		material = material.clone();
 		material.flatShading = true;
@@ -674,7 +680,7 @@ function addCone( ctx, h, r, n ) {
 	bufferGeometry.uvsNeedUpdate = true;
 	bufferGeometry.computeVertexNormals();
 
-	let mesh = new Mesh( bufferGeometry, [ ctx.materialManager.getCurrentMaterial().phongMat ] );
+	let mesh = new Mesh( bufferGeometry, [ ctx.materialManager.getCurrentMaterial().threeMat ] );
 	mesh.applyMatrix4( getFinalTransform( ctx ) );
 	ctx.currentGroup.add( mesh );
 
@@ -724,7 +730,7 @@ function addCylinder( ctx, h, br, tr, n ) {
 	bufferGeometry.uvsNeedUpdate = true;
 	bufferGeometry.computeVertexNormals();
 
-	let mesh = new Mesh( bufferGeometry, [ ctx.materialManager.getCurrentMaterial().phongMat ] );
+	let mesh = new Mesh( bufferGeometry, [ ctx.materialManager.getCurrentMaterial().threeMat ] );
 	mesh.applyMatrix4( getFinalTransform( ctx ) );
 	ctx.currentGroup.add( mesh );
 
@@ -765,7 +771,7 @@ function addDisc( ctx, h, r, n ) {
 	bufferGeometry.uvsNeedUpdate = true;
 	bufferGeometry.computeVertexNormals();
 
-	let mesh = new Mesh( bufferGeometry, [ ctx.materialManager.getCurrentMaterial().phongMat ] );
+	let mesh = new Mesh( bufferGeometry, [ ctx.materialManager.getCurrentMaterial().threeMat ] );
 	mesh.applyMatrix4( getFinalTransform( ctx ) );
 	ctx.currentGroup.add( mesh );
 
@@ -840,7 +846,7 @@ function addHemisphere( ctx, r, n ) {
 	bufferGeometry.uvsNeedUpdate = true;
 	bufferGeometry.computeVertexNormals();
 
-	let mesh = new Mesh( bufferGeometry, [ ctx.materialManager.getCurrentMaterial().phongMat ] );
+	let mesh = new Mesh( bufferGeometry, [ ctx.materialManager.getCurrentMaterial().threeMat ] );
 	mesh.applyMatrix4( getFinalTransform( ctx ) );
 	ctx.currentGroup.add( mesh );
 
@@ -861,7 +867,7 @@ function addSphere( ctx, r, n ) {
 	let geometry = new SphereGeometry( r, nbSides, nbSegments );
 	geometry.addGroup( 0, geometry.getIndex().count, 0 );
 
-	let mesh = new Mesh( geometry, [ ctx.materialManager.getCurrentMaterial().phongMat ] );
+	let mesh = new Mesh( geometry, [ ctx.materialManager.getCurrentMaterial().threeMat ] );
 	mesh.applyMatrix4( getFinalTransform( ctx ) );
 	ctx.currentGroup.add( mesh );
 
@@ -1122,7 +1128,7 @@ class RWXMaterial {
 class RWXMaterialManager {
 
 	constructor( folder, textureExtension = "jpg", maskExtension =
-	  "zip", jsZip = null, jsZipUtils = null ) {
+	"zip", jsZip = null, jsZipUtils = null, useBasicMaterial = false ) {
 
 		this.folder = folder;
 		this.textureExtension = textureExtension;
@@ -1135,6 +1141,7 @@ class RWXMaterialManager {
 		this.currentMaterialID = null;
 		this.currentMaterialList = [];
 		this.currentMaterialSignature = "";
+		this.useBasicMaterial = useBasicMaterial;
 
 	}
 
@@ -1147,7 +1154,7 @@ class RWXMaterialManager {
 		if ( this.threeMaterialMap[ materialSignature ] === undefined ) {
 
 			this.threeMaterialMap[ materialSignature ] = makeThreeMaterial( this.currentRWXMaterial,
-				this.folder, this.textureExtension, this.maskExtension, this.jsZip, this.jsZipUtils );
+				this.folder, this.textureExtension, this.maskExtension, this.jsZip, this.jsZipUtils, this.useBasicMaterial );
 			this.threeMaterialMap[ materialSignature ].needsUpdate = true;
 
 		}
@@ -1200,13 +1207,13 @@ class RWXMaterialManager {
 
 		for ( const pair of Object.entries( this.threeMaterialMap ) ) {
 
-			const animation = pair[ 1 ].phongMat.userData.rwx.animation;
+			const animation = pair[ 1 ].threeMat.userData.rwx.animation;
 
 			if ( animation !== undefined ) {
 
 				animation.step = ( animation.step + 1 ) % animation.yTiles;
-				pair[ 1 ].phongMat.map.offset.y = ( 1.0 - animation.yHeight ) - animation.step * animation.yHeight;
-				pair[ 1 ].phongMat.needsUpdate = true;
+				pair[ 1 ].threeMat.map.offset.y = ( 1.0 - animation.yHeight ) - animation.step * animation.yHeight;
+				pair[ 1 ].threeMat.needsUpdate = true;
 
 			}
 
@@ -1267,6 +1274,7 @@ class RWXLoader extends Loader {
 
 		this.waitFullLoad = false;
 		this.flatten = false;
+		this.useBasicMaterial = false;
 		this.rwxMaterialManager = null;
 
 	}
@@ -1314,6 +1322,15 @@ class RWXLoader extends Loader {
 	setFlatten( flatten ) {
 
 		this.flatten = flatten;
+
+		return this;
+
+	}
+
+	// Wether or not to use MeshBasicMaterial instead of MeshPhongMaterial
+	setUseBasicMaterial( useBasicMaterial ) {
+
+		this.useBasicMaterial = useBasicMaterial;
 
 		return this;
 
@@ -1396,7 +1413,7 @@ class RWXLoader extends Loader {
 
 			loadingPromises: [],
 
-			materialManager: this.rwxMaterialManager !== null ? this.rwxMaterialManager : new RWXMaterialManager( textureFolderPath, this.textureExtension, this.maskExtension, this.jsZip, this.jsZipUtils )
+			materialManager: this.rwxMaterialManager !== null ? this.rwxMaterialManager : new RWXMaterialManager( textureFolderPath, this.textureExtension, this.maskExtension, this.jsZip, this.jsZipUtils, this.useBasicMaterial )
 
 		};
 
@@ -2044,5 +2061,5 @@ class RWXLoader extends Loader {
 }
 
 export default RWXLoader;
-export { RWXMaterial, RWXMaterialManager, makeThreeMaterial, makeMaskPromise, applyTextureToPhong,
+export { RWXMaterial, RWXMaterialManager, makeThreeMaterial, makeMaskPromise, applyTextureToMat,
 	LightSampling, GeometrySampling, TextureMode, MaterialMode, flattenGroup };
