@@ -219,7 +219,7 @@ function applyTextureToMat( threeMat, folder, textureName, textureExtension = "j
 			threeMat.needsUpdate = true;
 
 			// If the height is nicely divisible by the width: it's an animated texture
-			if ( texture.image.height % texture.image.width === 0 ) {
+			if ( texture.image.height !== texture.image.width && texture.image.height % texture.image.width === 0 ) {
 
 				threeMat.userData.rwx[ 'animation' ] = { yTiles: texture.image.height / texture.image.width, yHeight: texture.image.width / texture.image.height, step: 0 };
 				texture.offset.y = ( 1.0 - threeMat.userData.rwx.animation.yHeight );
