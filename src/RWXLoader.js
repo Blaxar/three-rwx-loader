@@ -440,6 +440,10 @@ function makeMeshToCurrentGroup( ctx ) {
 		ctx.loadingPromises = ctx.loadingPromises.concat( ctx.materialManager.getCurrentMaterialList().map( res => res.loadingPromises ) );
 
 		const mesh = new Mesh( ctx.currentBufferGeometry, ctx.materialManager.getCurrentMaterialList().map( res => res.threeMat ) );
+
+		/* Keep track of tagged materials for this mesh */
+		mesh.userData[ 'taggedMaterials' ] = ctx.taggedMaterials;
+
 		ctx.currentGroup.add( mesh );
 
 	}
@@ -636,6 +640,7 @@ function addBlock( ctx, w, h, d ) {
 	bufferGeometry.computeVertexNormals();
 
 	let mesh = new Mesh( bufferGeometry, [ material ] );
+	mesh.userData[ 'taggedMaterials' ] = {};
 	mesh.applyMatrix4( getFinalTransform( ctx ) );
 	ctx.currentGroup.add( mesh );
 
@@ -681,6 +686,7 @@ function addCone( ctx, h, r, n ) {
 	bufferGeometry.computeVertexNormals();
 
 	let mesh = new Mesh( bufferGeometry, [ ctx.materialManager.getCurrentMaterial().threeMat ] );
+	mesh.userData[ 'taggedMaterials' ] = {};
 	mesh.applyMatrix4( getFinalTransform( ctx ) );
 	ctx.currentGroup.add( mesh );
 
@@ -731,6 +737,7 @@ function addCylinder( ctx, h, br, tr, n ) {
 	bufferGeometry.computeVertexNormals();
 
 	let mesh = new Mesh( bufferGeometry, [ ctx.materialManager.getCurrentMaterial().threeMat ] );
+	mesh.userData[ 'taggedMaterials' ] = {};
 	mesh.applyMatrix4( getFinalTransform( ctx ) );
 	ctx.currentGroup.add( mesh );
 
@@ -773,6 +780,7 @@ function addDisc( ctx, h, r, n ) {
 
 	let mesh = new Mesh( bufferGeometry, [ ctx.materialManager.getCurrentMaterial().threeMat ] );
 	mesh.applyMatrix4( getFinalTransform( ctx ) );
+	mesh.userData[ 'taggedMaterials' ] = {};
 	ctx.currentGroup.add( mesh );
 
 }
@@ -847,6 +855,7 @@ function addHemisphere( ctx, r, n ) {
 	bufferGeometry.computeVertexNormals();
 
 	let mesh = new Mesh( bufferGeometry, [ ctx.materialManager.getCurrentMaterial().threeMat ] );
+	mesh.userData[ 'taggedMaterials' ] = {};
 	mesh.applyMatrix4( getFinalTransform( ctx ) );
 	ctx.currentGroup.add( mesh );
 
@@ -868,6 +877,7 @@ function addSphere( ctx, r, n ) {
 	geometry.addGroup( 0, geometry.getIndex().count, 0 );
 
 	let mesh = new Mesh( geometry, [ ctx.materialManager.getCurrentMaterial().threeMat ] );
+	mesh.userData[ 'taggedMaterials' ] = {};
 	mesh.applyMatrix4( getFinalTransform( ctx ) );
 	ctx.currentGroup.add( mesh );
 
@@ -921,6 +931,36 @@ function loadCurrentTransform( ctx ) {
 
 }
 
+function setMaterialTag( ctx, tag ) {
+
+	ctx.materialManager.currentRWXMaterial.tag = tag;
+
+	if ( ctx.taggedMaterials[ tag.toString() ] === undefined ) {
+
+		// If there are no material under that tag yet, we need to initiliaze the entry
+		// with an empty array
+		ctx.taggedMaterials[ tag.toString() ] = [];
+
+	}
+
+	// We need to keep track of the position of the tagged material within the material list
+	// of the mesh, we don't have the mesh yet but we already know which position from which
+	// the material will be accessible, thanks to the material manager, see makeMeshToCurrentGroup(...)
+	// to see how sed mesh is finally defined
+	if ( ! ctx.taggedMaterials[ tag.toString() ].includes( ctx.materialManager.getCurrentMaterialID() ) ) {
+
+		ctx.taggedMaterials[ tag.toString() ].push( ctx.materialManager.getCurrentMaterialID() );
+
+	}
+
+}
+
+function resetMaterialTag( ctx ) {
+
+	ctx.materialManager.currentRWXMaterial.tag = 0;
+
+}
+
 // Utility function to merge all group and subgroup geometries into on single buffer, all while taking materials into account
 function mergeGeometryRecursive( group, ctx, transform = group.matrix ) {
 
@@ -954,6 +994,23 @@ function mergeGeometryRecursive( group, ctx, transform = group.matrix ) {
 					} );
 
 				} );
+
+				// Adjust user data for tagged materials, all indices must also be offset
+				for ( const [ tag, ids ] of Object.entries( child.userData[ 'taggedMaterials' ] ) ) {
+
+					if ( ctx.taggedMaterials[ tag ] === undefined ) {
+
+						ctx.taggedMaterials[ tag ] = [];
+
+					}
+
+					ids.forEach( ( id ) => {
+
+						ctx.taggedMaterials[ tag ].push( id + ctx.materials.length );
+
+					} );
+
+				}
 
 				// Add the materials from the child to the final material list
 				ctx.materials.push( ...child.material );
@@ -1027,6 +1084,7 @@ function flattenGroup( group ) {
 		uvs: [],
 		indices: [],
 		materials: [],
+		taggedMaterials: {}
 
 	};
 
@@ -1042,6 +1100,7 @@ function flattenGroup( group ) {
 	let finalMesh = new Mesh( ctx.bufferGeometry, ctx.materials );
 
 	finalMesh.userData[ 'rwx' ] = group.userData[ 'rwx' ];
+	finalMesh.userData[ 'taggedMaterials' ] = ctx.taggedMaterials;
 
 	return finalMesh;
 
@@ -1066,7 +1125,7 @@ class RWXMaterial {
 		this.collision = true;
 		// End of material related properties
 
-		this.transform = new Matrix4();
+		this.tag = 0;
 
 	}
 
@@ -1118,6 +1177,8 @@ class RWXMaterial {
 		}
 
 		sign += this.collision.toString();
+
+		sign += this.tag.toString();
 
 		return sign;
 
@@ -1240,9 +1301,9 @@ class RWXLoader extends Loader {
 		this.protoinstanceRegex = /^ *(protoinstance) +([A-Za-z0-9_\-\.]+).*$/i;
 		this.protoendRegex = /^ *(protoend).*$/i;
 		this.vertexRegex = /^ *(vertex|vertexext)(( +[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)){3}) *(uv(( +[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)){2}))?.*$/i;
-		this.polygonRegex = /^ *(polygon|polygonext)( +[0-9]+)(( +[0-9]+)+) ?.*$/i;
-		this.quadRegex = /^ *(quad|quadext)(( +([0-9]+)){4}).*$/i;
-		this.triangleRegex = /^ *(triangle|triangleext)(( +([0-9]+)){3}).*$/i;
+		this.polygonRegex = /^ *(polygon|polygonext)( +[0-9]+)(( +[0-9]+)+)( +tag +([0-9]+))? *$/i;
+		this.quadRegex = /^ *(quad|quadext)(( +([0-9]+)){4})( +tag +([0-9]+))? *$/i;
+		this.triangleRegex = /^ *(triangle|triangleext)(( +([0-9]+)){3})( +tag +([0-9]+))? *$/i;
 		this.textureRegex = /^ *(texture) +([A-Za-z0-9_\-]+) *(mask *([A-Za-z0-9_\-]+))?.*$/i;
 		this.colorRegex = /^ *(color)(( +[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)){3}).*$/i;
 		this.opacityRegex = /^ *(opacity)( +[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)).*$/i;
@@ -1413,7 +1474,9 @@ class RWXLoader extends Loader {
 
 			loadingPromises: [],
 
-			materialManager: this.rwxMaterialManager !== null ? this.rwxMaterialManager : new RWXMaterialManager( textureFolderPath, this.textureExtension, this.maskExtension, this.jsZip, this.jsZipUtils, this.useBasicMaterial )
+			materialManager: this.rwxMaterialManager !== null ? this.rwxMaterialManager : new RWXMaterialManager( textureFolderPath, this.textureExtension, this.maskExtension, this.jsZip, this.jsZipUtils, this.useBasicMaterial ),
+
+			taggedMaterials: {}
 
 		};
 
@@ -1579,7 +1642,20 @@ class RWXLoader extends Loader {
 
 				} );
 
+				const tag = res.slice( - 1 )[ 0 ];
+				if ( tag !== undefined ) {
+
+					setMaterialTag( ctx, parseInt( tag ) );
+
+				}
+
 				addTriangle( ctx, vId[ 0 ], vId[ 1 ], vId[ 2 ] );
+
+				if ( tag !== undefined ) {
+
+					resetMaterialTag( ctx );
+
+				}
 
 				continue;
 
@@ -1595,7 +1671,20 @@ class RWXLoader extends Loader {
 
 				} );
 
+				const tag = res.slice( - 1 )[ 0 ];
+				if ( tag !== undefined ) {
+
+					setMaterialTag( ctx, parseInt( tag ) );
+
+				}
+
 				addQuad( ctx, vId[ 0 ], vId[ 1 ], vId[ 2 ], vId[ 3 ] );
+
+				if ( tag !== undefined ) {
+
+					resetMaterialTag( ctx );
+
+				}
 
 				continue;
 
@@ -1615,7 +1704,20 @@ class RWXLoader extends Loader {
 
 				}
 
+				const tag = res.slice( - 1 )[ 0 ];
+				if ( tag !== undefined ) {
+
+					setMaterialTag( ctx, parseInt( tag ) );
+
+				}
+
 				addPolygon( ctx, polyIDs );
+
+				if ( tag !== undefined ) {
+
+					resetMaterialTag( ctx );
+
+				}
 
 				continue;
 
