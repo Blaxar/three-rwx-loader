@@ -1608,13 +1608,15 @@ class RWXLoader extends Loader {
 			res = this.textureRegex.exec( line );
 			if ( res != null ) {
 
-				if ( res[ 2 ].toLowerCase() == "null" ) {
+				const texture = res[ 2 ].toLowerCase();
+
+				if ( texture == "null" ) {
 
 					ctx.materialManager.currentRWXMaterial.texture = null;
 
 				} else {
 
-					ctx.materialManager.currentRWXMaterial.texture = res[ 2 ];
+					ctx.materialManager.currentRWXMaterial.texture = texture;
 
 				}
 
