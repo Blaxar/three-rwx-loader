@@ -446,6 +446,9 @@ function makeMeshToCurrentGroup( ctx ) {
 
 		ctx.currentGroup.add( mesh );
 
+		resetMaterialTag( ctx );
+		ctx.taggedMaterials = {};
+
 	}
 
 }
@@ -1561,8 +1564,8 @@ class RWXLoader extends Loader {
 
 				let name = res[ 2 ];
 
-				transformBeforeProto = ctx.currentGroup;
-				groupBeforeProto = ctx.currentTransform;
+				groupBeforeProto = ctx.currentGroup;
+				transformBeforeProto = ctx.currentTransform;
 
 				ctx.rwxProtoDict[ name ] = new Group();
 				ctx.currentTransform = new Matrix4();
@@ -1581,8 +1584,8 @@ class RWXLoader extends Loader {
 
 				makeMeshToCurrentGroup( ctx );
 
-				ctx.currentGroup = transformBeforeProto;
-				ctx.currentTransform = groupBeforeProto;
+				ctx.currentGroup = groupBeforeProto;
+				ctx.currentTransform = transformBeforeProto;
 
 				resetGeometry( ctx );
 
