@@ -295,7 +295,7 @@ function applyTextureToMat( threeMat, folder, textureName, textureExtension = "j
 				bmpURI = bmpURI.concat( btoa( dataStr ) );
 
 				// Make a texture out of the bmp mask, apply it to the material
-				return makeMaskPromise( bmpURI, threeMat, loader, textureEncoding );
+				return makeMaskPromise( bmpURI, threeMat, loader );
 
 			}, function error( e ) {
 
@@ -387,7 +387,8 @@ function makeThreeMaterial( rwxMaterial, folder, textureExtension = "jpg", maskE
 
 	if ( rwxMaterial.texture == null ) {
 
-		threeMat.color.set( rwxMaterial.getColorHexValue() );
+		// Assuming sRGB encoding for colors in RWX commands, so we need to convert back to linear
+		threeMat.color.set( rwxMaterial.getColorHexValue() ).convertSRGBToLinear();
 
 	} else {
 
