@@ -20,6 +20,7 @@ import {
 	ShapeBufferGeometry,
 	TextureLoader,
 	RepeatWrapping,
+	LinearEncoding,
 	FrontSide,
 	DoubleSide,
 	Group,
@@ -185,7 +186,7 @@ function triangulateFacesWithShapes( vertices, uvs, loop ) {
 
 }
 
-function makeMaskPromise( bmpURI, threeMat, loader ) {
+function makeMaskPromise( bmpURI, threeMat, loader, textureEncoding = LinearEncoding ) {
 
 	return new Promise( ( resolveMask ) => {
 
@@ -193,6 +194,7 @@ function makeMaskPromise( bmpURI, threeMat, loader ) {
 
 			maskTexture.wrapS = RepeatWrapping;
 			maskTexture.wrapT = RepeatWrapping;
+			maskTexture.encoding = textureEncoding;
 			threeMat.alphaMap = maskTexture;
 			threeMat.needsUpdate = true;
 			resolveMask( maskTexture );
@@ -204,7 +206,7 @@ function makeMaskPromise( bmpURI, threeMat, loader ) {
 }
 
 function applyTextureToMat( threeMat, folder, textureName, textureExtension = "jpg", maskName = null,
-	maskExtension = "zip", jsZip = null, jsZipUtils = null, loadingPromises = [] ) {
+	maskExtension = "zip", jsZip = null, jsZipUtils = null, loadingPromises = [], textureEncoding = LinearEncoding ) {
 
 	let loader = new TextureLoader();
 
@@ -215,6 +217,7 @@ function applyTextureToMat( threeMat, folder, textureName, textureExtension = "j
 
 			texture.wrapS = RepeatWrapping;
 			texture.wrapT = RepeatWrapping;
+			texture.encoding = textureEncoding;
 			threeMat.map = texture;
 			threeMat.needsUpdate = true;
 
@@ -292,7 +295,7 @@ function applyTextureToMat( threeMat, folder, textureName, textureExtension = "j
 				bmpURI = bmpURI.concat( btoa( dataStr ) );
 
 				// Make a texture out of the bmp mask, apply it to the material
-				return makeMaskPromise( bmpURI, threeMat, loader );
+				return makeMaskPromise( bmpURI, threeMat, loader, textureEncoding );
 
 			}, function error( e ) {
 
@@ -311,8 +314,8 @@ function applyTextureToMat( threeMat, folder, textureName, textureExtension = "j
 
 }
 
-function makeThreeMaterial( rwxMaterial, folder, textureExtension = "jpg", maskExtension =
-"zip", jsZip = null, jsZipUtils = null, useBasicMaterial = false ) {
+function makeThreeMaterial( rwxMaterial, folder, textureExtension = "jpg", maskExtension = "zip",
+	jsZip = null, jsZipUtils = null, useBasicMaterial = false, textureEncoding = LinearEncoding ) {
 
 	let materialDict = { name: rwxMaterial.getMatSignature() };
 
@@ -389,7 +392,7 @@ function makeThreeMaterial( rwxMaterial, folder, textureExtension = "jpg", maskE
 	} else {
 
 		applyTextureToMat( threeMat, folder, rwxMaterial.texture, textureExtension, rwxMaterial.mask,
-			maskExtension, jsZip, jsZipUtils, loadingPromises );
+			maskExtension, jsZip, jsZipUtils, loadingPromises, textureEncoding );
 
 	}
 
@@ -1192,7 +1195,8 @@ class RWXMaterial {
 class RWXMaterialManager {
 
 	constructor( folder, textureExtension = "jpg", maskExtension =
-	"zip", jsZip = null, jsZipUtils = null, useBasicMaterial = false ) {
+	"zip", jsZip = null, jsZipUtils = null, useBasicMaterial = false,
+	textureEncoding = LinearEncoding ) {
 
 		this.folder = folder;
 		this.textureExtension = textureExtension;
@@ -1206,6 +1210,7 @@ class RWXMaterialManager {
 		this.currentMaterialList = [];
 		this.currentMaterialSignature = "";
 		this.useBasicMaterial = useBasicMaterial;
+		this.textureEncoding = textureEncoding;
 
 	}
 
@@ -1218,7 +1223,8 @@ class RWXMaterialManager {
 		if ( this.threeMaterialMap[ materialSignature ] === undefined ) {
 
 			this.threeMaterialMap[ materialSignature ] = makeThreeMaterial( this.currentRWXMaterial,
-				this.folder, this.textureExtension, this.maskExtension, this.jsZip, this.jsZipUtils, this.useBasicMaterial );
+				this.folder, this.textureExtension, this.maskExtension, this.jsZip, this.jsZipUtils,
+				this.useBasicMaterial, this.textureEncoding );
 			this.threeMaterialMap[ materialSignature ].needsUpdate = true;
 
 		}
@@ -1340,6 +1346,7 @@ class RWXLoader extends Loader {
 		this.flatten = false;
 		this.useBasicMaterial = false;
 		this.rwxMaterialManager = null;
+		this.textureEncoding = LinearEncoding;
 
 	}
 
@@ -1405,6 +1412,15 @@ class RWXLoader extends Loader {
 	setRWXMaterialManager( rwxMgr ) {
 
 		this.rwxMaterialManager = rwxMgr;
+
+		return this;
+
+	}
+
+	// Set the texture encoding mode used for textures and masks loaded for materials (default is LinearEncoding)
+	setTextureEncoding( textureEncoding ) {
+
+		this.textureEncoding = textureEncoding;
 
 		return this;
 
@@ -1477,7 +1493,7 @@ class RWXLoader extends Loader {
 
 			loadingPromises: [],
 
-			materialManager: this.rwxMaterialManager !== null ? this.rwxMaterialManager : new RWXMaterialManager( textureFolderPath, this.textureExtension, this.maskExtension, this.jsZip, this.jsZipUtils, this.useBasicMaterial ),
+			materialManager: this.rwxMaterialManager !== null ? this.rwxMaterialManager : new RWXMaterialManager( textureFolderPath, this.textureExtension, this.maskExtension, this.jsZip, this.jsZipUtils, this.useBasicMaterial, this.textureEncoding ),
 
 			taggedMaterials: {}
 
@@ -2150,7 +2166,7 @@ class RWXLoader extends Loader {
 		if ( this.waitFullLoad ) {
 
 			// Wait all mask futures before returning loaded object
-			Promise.all( ctx.loadingPromises.flat() ).then( ( ) => {
+			Promise.all( ctx.loadingPromises ).then( ( ) => {
 
 				onParse( this.flatten ? flattenGroup( ctx.groupStack[ 0 ] ) : ctx.groupStack[ 0 ] );
 

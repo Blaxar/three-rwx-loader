@@ -2,8 +2,8 @@
  * @author Julien 'Blaxar' Bardagi <blaxar.waldarax@gmail.com>
  */
 
-import { Matrix4 } from 'three';
-import RWXLoader, { RWXMaterial, LightSampling, GeometrySampling, TextureMode, MaterialMode } from './RWXLoader.js';
+import { Matrix4, LinearEncoding, sRGBEncoding } from 'three';
+import RWXLoader, { RWXMaterial, RWXMaterialManager, LightSampling, GeometrySampling, TextureMode, MaterialMode } from './RWXLoader.js';
 
 test('setJSZip', () => {
     let loader = new RWXLoader();
@@ -49,6 +49,31 @@ test('setFlatten', () => {
     expect(loader.flatten).toBe(true);
 });
 
+test('setRWXMaterialManager', () => {
+    let loader = new RWXLoader();
+    let mgr = new RWXMaterialManager();
+
+    expect(loader.rwxMaterialManager).toBe(null);
+    expect(loader.setRWXMaterialManager(mgr)).toStrictEqual(loader);
+    expect(loader.rwxMaterialManager).toStrictEqual(mgr);
+});
+
+test('setUseBasicMaterial', () => {
+    let loader = new RWXLoader();
+
+    expect(loader.useBasicMaterial).toBe(false);
+    expect(loader.setUseBasicMaterial(true)).toStrictEqual(loader);
+    expect(loader.useBasicMaterial).toBe(true);
+});
+
+test('setTextureEncoding', () => {
+    let loader = new RWXLoader();
+
+    expect(loader.textureEncoding).toBe(LinearEncoding);
+    expect(loader.setTextureEncoding(sRGBEncoding)).toStrictEqual(loader);
+    expect(loader.textureEncoding).toBe(sRGBEncoding);
+});
+
 test('RWXMaterial', () => {
     let rwxMat = new RWXMaterial();
 
@@ -68,16 +93,17 @@ test('RWXMaterial', () => {
     expect(rwxMat.materialmode).toBe(MaterialMode.NULL);
     expect(rwxMat.texture).toBeNull();
     expect(rwxMat.mask).toBeNull();
-    expect(rwxMat.transform.equals(new Matrix4)).toBe(true);
+    expect(rwxMat.tag).toBe(0);
 
-    expect(rwxMat.getMatSignature()).toBe("0.0000.0000.0000.0000.0000.0001.0001311true");
+    expect(rwxMat.getMatSignature()).toBe("0.0000.0000.0000.0000.0000.0001.0001311true0");
 
     const clonedMat = rwxMat.clone();
 
     rwxMat.texture = "wood1";
     rwxMat.mask = "wood1m";
+    rwxMat.tag = 100;
 
-    expect(rwxMat.getMatSignature()).toBe("0.0000.0000.0000.0000.0000.0001.0001311wood1wood1mtrue");
+    expect(rwxMat.getMatSignature()).toBe("0.0000.0000.0000.0000.0000.0001.0001311wood1wood1mtrue100");
 
     rwxMat.color[0] = 1;
     rwxMat.color[1] = 2;
@@ -116,5 +142,5 @@ test('RWXMaterial', () => {
     expect(clonedMat.materialmode).toBe(MaterialMode.NULL);
     expect(clonedMat.texture).toBeNull();
     expect(clonedMat.mask).toBeNull();
-    expect(clonedMat.transform.equals(new Matrix4)).toBe(true);
+    expect(clonedMat.tag).toBe(0);
 });
