@@ -1003,19 +1003,25 @@ function mergeGeometryRecursive( group, ctx, transform = group.matrix ) {
 				} );
 
 				// Adjust user data for tagged materials, all indices must also be offset
-				for ( const [ tag, ids ] of Object.entries( child.userData[ 'taggedMaterials' ] ) ) {
+				const taggedMaterials = child.userData[ 'taggedMaterials' ];
 
-					if ( ctx.taggedMaterials[ tag ] === undefined ) {
+				if ( taggedMaterials !== undefined ) {
 
-						ctx.taggedMaterials[ tag ] = [];
+					for ( const [ tag, ids ] of Object.entries( taggedMaterials ) ) {
+
+						if ( ctx.taggedMaterials[ tag ] === undefined ) {
+
+							ctx.taggedMaterials[ tag ] = [];
+
+						}
+
+						ids.forEach( ( id ) => {
+
+							ctx.taggedMaterials[ tag ].push( id + ctx.materials.length );
+
+						} );
 
 					}
-
-					ids.forEach( ( id ) => {
-
-						ctx.taggedMaterials[ tag ].push( id + ctx.materials.length );
-
-					} );
 
 				}
 
