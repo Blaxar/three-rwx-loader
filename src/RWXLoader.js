@@ -1049,7 +1049,8 @@ function mergeGeometryRecursive( group, ctx, transform = group.matrix ) {
 
 			// Import the current geometry (vertices and faces) from the child into the final buffer,
 			// apply local transformations if any
-			for ( let i = 0, l = originalVertices.length / 3; i < l; i ++ ) {
+			let i = 0;
+			for ( let l = originalVertices.length / 3; i < l; i ++ ) {
 
 				let tmpVertex = new Vector4( originalVertices[ i * 3 ], originalVertices[ i * 3 + 1 ], originalVertices[ i * 3 + 2 ] );
 				tmpVertex.applyMatrix4( localTransform );
@@ -1061,7 +1062,16 @@ function mergeGeometryRecursive( group, ctx, transform = group.matrix ) {
 			}
 
 			// Do not forget the UVs either
-			ctx.uvs.push( ...child.geometry.getAttribute( 'uv' ).array );
+			if ( child.geometry.getAttribute( 'uv' ) === undefined ) {
+
+				const uvs = new Array( i * 2 ).fill( 0.0 );
+				ctx.uvs.push( ...uvs );
+
+			} else {
+
+				ctx.uvs.push( ...child.geometry.getAttribute( 'uv' ).array );
+
+			}
 
 			ctx.indices.push( ...geometryIndices.map( ( value ) => {
 
