@@ -977,7 +977,7 @@ function mergeGeometryRecursive( group, ctx, transform = group.matrix ) {
 		localTransform.copy( transform );
 		localTransform.multiply( child.matrix );
 
-		if ( child instanceof Mesh ) {
+		if ( child instanceof Mesh && ctx.meshFilter( child ) ) {
 
 			// We first need to set up the new BufferGeometry groups
 			let geometryGroups = [];
@@ -1098,7 +1098,11 @@ function mergeGeometryRecursive( group, ctx, transform = group.matrix ) {
 
 }
 
-function flattenGroup( group ) {
+function flattenGroup( group, filter = () => {
+
+	return true;
+
+} ) {
 
 	let ctx = {
 
@@ -1107,7 +1111,8 @@ function flattenGroup( group ) {
 		uvs: [],
 		indices: [],
 		materials: [],
-		taggedMaterials: {}
+		taggedMaterials: {},
+		meshFilter: filter
 
 	};
 
