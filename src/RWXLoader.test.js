@@ -95,15 +95,16 @@ test('RWXMaterial', () => {
     expect(rwxMat.mask).toBeNull();
     expect(rwxMat.tag).toBe(0);
 
-    expect(rwxMat.getMatSignature()).toBe("0.0000.0000.0000.0000.0000.0001.0001311true0");
+    expect(rwxMat.getMatSignature()).toBe("0.0000.0000.000_0.0000.0000.000_1.000_1_3_1_1___true_0_1.00");
 
     const clonedMat = rwxMat.clone();
 
     rwxMat.texture = "wood1";
     rwxMat.mask = "wood1m";
     rwxMat.tag = 100;
+    rwxMat.ratio = 0.5;
 
-    expect(rwxMat.getMatSignature()).toBe("0.0000.0000.0000.0000.0000.0001.0001311wood1wood1mtrue100");
+    expect(rwxMat.getMatSignature()).toBe("0.0000.0000.000_0.0000.0000.000_1.000_1_3_1_1_wood1_wood1m_true_100_0.50");
 
     rwxMat.color[0] = 1;
     rwxMat.color[1] = 2;

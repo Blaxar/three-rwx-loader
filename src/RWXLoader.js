@@ -384,6 +384,7 @@ function makeThreeMaterial( rwxMaterial, folder, textureExtension = "jpg", maskE
 	let loadingPromises = [];
 
 	threeMat.userData[ 'collision' ] = rwxMaterial.collision;
+	threeMat.userData[ 'ratio' ] = rwxMaterial.ratio;
 
 	if ( rwxMaterial.texture == null ) {
 
@@ -451,6 +452,7 @@ function makeMeshToCurrentGroup( ctx ) {
 		ctx.currentGroup.add( mesh );
 
 		resetMaterialTag( ctx );
+		resetMaterialRatio( ctx );
 		ctx.taggedMaterials = {};
 
 	}
@@ -938,7 +940,7 @@ function loadCurrentTransform( ctx ) {
 
 }
 
-function setMaterialTag( ctx, tag ) {
+function commitMaterialTag( ctx, tag ) {
 
 	ctx.materialManager.currentRWXMaterial.tag = tag;
 
@@ -965,6 +967,129 @@ function setMaterialTag( ctx, tag ) {
 function resetMaterialTag( ctx ) {
 
 	ctx.materialManager.currentRWXMaterial.tag = 0;
+
+}
+
+function setMaterialRatio( ctx, a, b, c ) {
+
+	// The point here is to evaluate the aspect ratio of the surface to write a sign on,
+	// we first need to list all the information we will need: vertex positions an UVs.
+	const aPos = new Vector3( ctx.currentBufferVertices[ a * 3 ],
+		ctx.currentBufferVertices[ a * 3 + 1 ],
+		ctx.currentBufferVertices[ a * 3 + 2 ] );
+	const bPos = new Vector3( ctx.currentBufferVertices[ b * 3 ],
+		ctx.currentBufferVertices[ b * 3 + 1 ],
+		ctx.currentBufferVertices[ b * 3 + 2 ] );
+	const cPos = new Vector3( ctx.currentBufferVertices[ c * 3 ],
+		ctx.currentBufferVertices[ c * 3 + 1 ],
+		ctx.currentBufferVertices[ c * 3 + 2 ] );
+	const aUV = new Vector2( ctx.currentBufferUVs[ a * 2 ],
+		ctx.currentBufferUVs[ a * 2 + 1 ] );
+	const bUV = new Vector2( ctx.currentBufferUVs[ b * 2 ],
+		ctx.currentBufferUVs[ b * 2 + 1 ] );
+	const cUV = new Vector2( ctx.currentBufferUVs[ c * 2 ],
+		ctx.currentBufferUVs[ c * 2 + 1 ] );
+
+	// From there: we compute useful UV boundaries to better evaluate the dimensions later.
+	const maxU = Math.max( aUV.x, bUV.x, cUV.x );
+	const maxV = Math.max( aUV.y, bUV.y, cUV.y );
+	const minU = Math.min( aUV.x, bUV.x, cUV.x );
+	const minV = Math.min( aUV.y, bUV.y, cUV.y );
+	const midU = ( maxU + minU ) / 2;
+	const scaleU = 1 / ( maxU - minU );
+	const scaleV = 1 / ( maxV - minV );
+
+	// We work under the assumption that the triangle we are dealing with has a straight angle,
+	// but also that the UVs are reasonably aligned with it.
+	// We first assume that the edge (a) <--> (b) is the hypotenuse and c is said straight angle.
+	// By virtue of having a straight angle: the longest edge of the triangle cannot be anything
+	// else than the hypotenuse, so we know how to correct ourselves if need be.
+	let width = 1;
+	let height = 1;
+	let straightAngleVertex = cPos;
+	let straightAngleUV = cUV;
+	let hypEnds = [ aPos, bPos ];
+	let hypEndUVs = [ aUV, bUV ];
+	let sqrdHyp = aPos.distanceToSquared( bPos );
+	const acSqrdHyp = aPos.distanceToSquared( cPos );
+	const bcSqrdHyp = bPos.distanceToSquared( cPos );
+
+	// If (a) <--> (c) is longer than (a) <--> (b): the latter is no longer our best guest,
+	// for the hypotenuse, so (a) <--> (c) is now considered to be the hypotenuse and (b) is the
+	// new straight angle.
+	if ( acSqrdHyp > sqrdHyp ) {
+
+		sqrdHyp = acSqrdHyp;
+		straightAngleVertex = bPos;
+		hypEnds = [ aPos, cPos ];
+		straightAngleUV = bUV;
+		hypEndUVs = [ aUV, cUV ];
+
+	}
+
+	// If (b) <--> (c) is longer than (a) <--> (c): the latter is no longer our best guest,
+	// for the hypotenuse, so (b) <--> (c) is now considered to be the hypotenuse and (a) is the
+	// new straight angle.
+	if ( bcSqrdHyp > sqrdHyp ) {
+
+		sqrdHyp = bcSqrdHyp;
+		straightAngleVertex = aPos;
+		hypEnds = [ bPos, cPos ];
+		straightAngleUV = aUV;
+		hypEndUVs = [ bUV, cUV ];
+
+	}
+
+	// At this stage: we have a better idea of what the triangle looks like, but we still
+	// need to determine how flipped it is in regards to the UV canvas.
+	// We can determine which other vertices to use respectively for width and height by peeking at
+	// the UV coordinates of one of them, the trick is that a vertex here can only be the furthest
+	// away on U (width) or the furthest away on V (height) but not both at the same time.
+	if ( straightAngleUV.x < midU ) {
+
+		// Straight angle is on the left side
+		if ( hypEndUVs[ 0 ].x > midU ) {
+
+			// First end of the hypotenuse gives the width as it holds the furthest U value,
+			// the other end gives the height as it (by deduction) holds the furthest V value
+			width = straightAngleVertex.distanceTo( hypEnds[ 0 ] );
+			height = straightAngleVertex.distanceTo( hypEnds[ 1 ] );
+
+		} else {
+
+			// The other way around here
+			width = straightAngleVertex.distanceTo( hypEnds[ 1 ] );
+			height = straightAngleVertex.distanceTo( hypEnds[ 0 ] );
+
+		}
+
+	}
+
+	if ( straightAngleUV.x > midU ) {
+
+		// Straight angle is on the right side
+		if ( hypEndUVs[ 0 ].x < midU ) {
+
+			width = straightAngleVertex.distanceTo( hypEnds[ 0 ] );
+			height = straightAngleVertex.distanceTo( hypEnds[ 1 ] );
+
+		} else {
+
+			width = straightAngleVertex.distanceTo( hypEnds[ 1 ] );
+			height = straightAngleVertex.distanceTo( hypEnds[ 0 ] );
+
+		}
+
+	}
+
+	// The width and height values still need to be scaled to match the full UV canvas size
+	ctx.materialManager.currentRWXMaterial.ratio = ( width * scaleU ) / ( height * scaleV );
+
+}
+
+function resetMaterialRatio( ctx ) {
+
+	ctx.materialManager.currentRWXMaterial.ratio = 1.0;
 
 }
 
@@ -1098,11 +1223,7 @@ function mergeGeometryRecursive( group, ctx, transform = group.matrix ) {
 
 }
 
-function flattenGroup( group, filter = () => {
-
-	return true;
-
-} ) {
+function flattenGroup( group, filter = () => true ) {
 
 	let ctx = {
 
@@ -1154,6 +1275,7 @@ class RWXMaterial {
 		// End of material related properties
 
 		this.tag = 0;
+		this.ratio = 1.0;
 
 	}
 
@@ -1180,35 +1302,30 @@ class RWXMaterial {
 
 	getMatSignature() {
 
-		let sign = this.color[ 0 ].toFixed( 3 ) + this.color[ 1 ].toFixed( 3 ) + this.color[ 2 ].toFixed( 3 );
-		sign += this.surface[ 0 ].toFixed( 3 ) + this.surface[ 1 ].toFixed( 3 ) + this.surface[ 2 ].toFixed( 3 );
-		sign += this.opacity.toFixed( 3 );
-		sign += this.lightsampling.toString() + this.geometrysampling.toString();
+		const color = this.color[ 0 ].toFixed( 3 ) + this.color[ 1 ].toFixed( 3 ) + this.color[ 2 ].toFixed( 3 );
+		const surface = this.surface[ 0 ].toFixed( 3 ) + this.surface[ 1 ].toFixed( 3 ) + this.surface[ 2 ].toFixed( 3 );
+		const opacity = this.opacity.toFixed( 3 );
+		const lightSampling = this.lightsampling.toString();
+		const geometrySampling = this.geometrysampling.toString();
+		let textureMode = "";
+
 		this.texturemodes.forEach( ( tm ) => {
 
-			sign += tm.toString();
+			textureMode += tm.toString();
 
 		} );
 
-		sign += this.materialmode.toString();
+		const materialMode = this.materialmode.toString();
+		const texture = this.texture === null ? "" : this.texture;
+		const mask = this.mask === null ? "" : this.mask;
 
-		if ( this.texture != null ) {
+		const collision = this.collision.toString();
 
-			sign += this.texture;
+		const tag = this.tag.toString();
+		const ratio = this.ratio.toFixed( 2 );
 
-		}
-
-		if ( this.mask != null ) {
-
-			sign += this.mask;
-
-		}
-
-		sign += this.collision.toString();
-
-		sign += this.tag.toString();
-
-		return sign;
+		return `${color}_${surface}_${opacity}_${lightSampling}_${geometrySampling}_${textureMode}_${materialMode}` +
+			`_${texture}_${mask}_${collision}_${tag}_${ratio}`;
 
 	}
 
@@ -1688,7 +1805,13 @@ class RWXLoader extends Loader {
 				const tag = res.slice( - 1 )[ 0 ];
 				if ( tag !== undefined ) {
 
-					setMaterialTag( ctx, parseInt( tag ) );
+					if ( tag == 100 ) {
+
+						setMaterialRatio( ctx, vId[ 0 ], vId[ 1 ], vId[ 2 ] );
+
+					}
+
+					commitMaterialTag( ctx, parseInt( tag ) );
 
 				}
 
@@ -1697,6 +1820,7 @@ class RWXLoader extends Loader {
 				if ( tag !== undefined ) {
 
 					resetMaterialTag( ctx );
+					resetMaterialRatio( ctx );
 
 				}
 
@@ -1717,7 +1841,13 @@ class RWXLoader extends Loader {
 				const tag = res.slice( - 1 )[ 0 ];
 				if ( tag !== undefined ) {
 
-					setMaterialTag( ctx, parseInt( tag ) );
+					if ( tag == 100 ) {
+
+						setMaterialRatio( ctx, vId[ 0 ], vId[ 1 ], vId[ 2 ] );
+
+					}
+
+					commitMaterialTag( ctx, parseInt( tag ) );
 
 				}
 
@@ -1726,6 +1856,7 @@ class RWXLoader extends Loader {
 				if ( tag !== undefined ) {
 
 					resetMaterialTag( ctx );
+					resetMaterialRatio( ctx );
 
 				}
 
@@ -1750,7 +1881,7 @@ class RWXLoader extends Loader {
 				const tag = res.slice( - 1 )[ 0 ];
 				if ( tag !== undefined ) {
 
-					setMaterialTag( ctx, parseInt( tag ) );
+					commitMaterialTag( ctx, parseInt( tag ) );
 
 				}
 
