@@ -54,6 +54,8 @@ const MaterialMode = {
 	DOUBLE: 2
 };
 
+const sqrdRatioHintDelta = 0.3 ** 2;
+
 function getFinalTransform( ctx ) {
 
 	let transform = new Matrix4();
@@ -970,7 +972,7 @@ function resetMaterialTag( ctx ) {
 
 }
 
-function setMaterialRatio( ctx, a, b, c ) {
+function setMaterialRatio( ctx, a, b, c, d = null ) {
 
 	// The point here is to evaluate the aspect ratio of the surface to write a sign on,
 	// we first need to list all the information we will need: vertex positions an UVs.
@@ -1083,7 +1085,46 @@ function setMaterialRatio( ctx, a, b, c ) {
 	}
 
 	// The width and height values still need to be scaled to match the full UV canvas size
-	ctx.materialManager.currentRWXMaterial.ratio = ( width * scaleU ) / ( height * scaleV );
+	const ratio = ( width * scaleU ) / ( height * scaleV );
+	ctx.materialManager.currentRWXMaterial.ratio = ratio;
+
+	// To avoid generating multiple (unmatching) materials in case the ratios we get accross
+	// quads/triangles of a single surface were to differ: we check if a previous ratio was
+	// hinted at us, if it falls relatively close to the newly computed ratio: we take the
+	// hint instead.
+	if ( d === null ) {
+
+		if ( ctx.triangleRatioHint === null ) {
+
+			ctx.triangleRatioHint = ratio;
+
+		} else {
+
+			const ratioHintDiff = ratio - ctx.triangleRatioHint;
+			const sqrdRatioHintDiff = ratioHintDiff * ratioHintDiff;
+
+			ctx.materialManager.currentRWXMaterial.ratio =
+				sqrdRatioHintDiff < sqrdRatioHintDelta ? ctx.triangleRatioHint : ratio;
+
+		}
+
+	} else {
+
+		if ( ctx.quadRatioHint === null ) {
+
+			ctx.quadRatioHint = ratio;
+
+		} else {
+
+			const ratioHintDiff = ratio - ctx.quadRatioHint;
+			const sqrdRatioHintDiff = ratioHintDiff * ratioHintDiff;
+
+			ctx.materialManager.currentRWXMaterial.ratio =
+				sqrdRatioHintDiff < sqrdRatioHintDelta ? ctx.quadRatioHint : ratio;
+
+		}
+
+	}
 
 }
 
@@ -1634,7 +1675,9 @@ class RWXLoader extends Loader {
 
 			materialManager: this.rwxMaterialManager !== null ? this.rwxMaterialManager : new RWXMaterialManager( textureFolderPath, this.textureExtension, this.maskExtension, this.jsZip, this.jsZipUtils, this.useBasicMaterial, this.textureEncoding ),
 
-			taggedMaterials: {}
+			taggedMaterials: {},
+			quadRatioHint: null,
+			triangleRatioHint: null
 
 		};
 
@@ -1809,9 +1852,18 @@ class RWXLoader extends Loader {
 
 						setMaterialRatio( ctx, vId[ 0 ], vId[ 1 ], vId[ 2 ] );
 
+					} else {
+
+						// We are no longer on a triangle sign streak: we unset the ratio hint
+						ctx.triangleRatioHint = null;
+
 					}
 
 					commitMaterialTag( ctx, parseInt( tag ) );
+
+				} else {
+
+					ctx.triangleRatioHint = null;
 
 				}
 
@@ -1825,6 +1877,10 @@ class RWXLoader extends Loader {
 				}
 
 				continue;
+
+			} else {
+
+				ctx.triangleRatioHint = null;
 
 			}
 
@@ -1843,11 +1899,20 @@ class RWXLoader extends Loader {
 
 					if ( tag == 100 ) {
 
-						setMaterialRatio( ctx, vId[ 0 ], vId[ 1 ], vId[ 2 ] );
+						setMaterialRatio( ctx, vId[ 0 ], vId[ 1 ], vId[ 2 ], vId[ 3 ] );
+
+					} else {
+
+						// We are no longer on a quad sign streak: we unset the ratio hint
+						ctx.quadRatioHint = null;
 
 					}
 
 					commitMaterialTag( ctx, parseInt( tag ) );
+
+				} else {
+
+					ctx.quadRatioHint = null;
 
 				}
 
@@ -1861,6 +1926,10 @@ class RWXLoader extends Loader {
 				}
 
 				continue;
+
+			} else {
+
+			  ctx.quadRatioHint = null;
 
 			}
 
