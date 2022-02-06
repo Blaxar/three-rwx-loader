@@ -54,6 +54,53 @@ const MaterialMode = {
 	DOUBLE: 2
 };
 
+const RWXtag = {
+	PELVIS: 1,
+	BACK: 2,
+	NECK: 3,
+	HEAD: 4,
+	RTSTERNUM: 5,
+	RTSHOULDER: 6,
+	RTELBOW: 7,
+	RTWRIST: 8,
+	RTFINGERS: 9,
+	LFSTERNUM: 10,
+	LFSHOULDER: 11,
+	LFELBOW: 12,
+	LFWRIST: 13,
+	LFFINGERS: 14,
+	RTHIP: 15,
+	RTKNEE: 16,
+	RTANKLE: 17,
+	RTTOES: 18,
+	LFHIP: 19,
+	LFKNEE: 20,
+	LFANKLE: 21,
+	LFTOES: 22,
+	NECK2: 23,
+	TAIL: 24,
+	TAIL2: 25,
+	TAIL3: 26,
+	TAIL4: 27,
+	OBJ1: 28,
+	OBJ2: 29,
+	OBJ3: 30,
+	HAIR: 31,
+	HAIR2: 32,
+	HAIR3: 33,
+	HAIR4: 34,
+	RTBREAST: 35,
+	LFBREAST: 36,
+	RTEYE: 37,
+	LFEYE: 38,
+	LIPS: 39,
+	NOSE: 40,
+	RTEAR: 41,
+	LFEAR: 42,
+	SIGN: 100,
+	PICTURE: 200
+};
+
 const sqrdRatioHintDelta = 0.3 ** 2;
 
 function getFinalTransform( ctx ) {
@@ -1848,7 +1895,7 @@ class RWXLoader extends Loader {
 				const tag = res.slice( - 1 )[ 0 ];
 				if ( tag !== undefined ) {
 
-					if ( tag == 100 ) {
+					if ( tag == RWXtag.SIGN ) {
 
 						setMaterialRatio( ctx, vId[ 0 ], vId[ 1 ], vId[ 2 ] );
 
@@ -1897,7 +1944,7 @@ class RWXLoader extends Loader {
 				const tag = res.slice( - 1 )[ 0 ];
 				if ( tag !== undefined ) {
 
-					if ( tag == 100 ) {
+					if ( tag == RWXtag.SIGN ) {
 
 						setMaterialRatio( ctx, vId[ 0 ], vId[ 1 ], vId[ 2 ], vId[ 3 ] );
 
