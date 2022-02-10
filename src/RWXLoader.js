@@ -102,6 +102,7 @@ const RWXtag = {
 };
 
 const sqrdRatioHintDelta = 0.3 ** 2;
+const glossRatio = 0.1;
 
 function getFinalTransform( ctx ) {
 
@@ -273,7 +274,7 @@ function applyTextureToMat( threeMat, folder, textureName, textureExtension = "j
 			// If the height is nicely divisible by the width: it's an animated texture
 			if ( texture.image.height !== texture.image.width && texture.image.height % texture.image.width === 0 ) {
 
-				threeMat.userData.rwx[ 'animation' ] = { yTiles: texture.image.height / texture.image.width, yHeight: texture.image.width / texture.image.height, step: 0 };
+				threeMat.userData.rwx.animation = { yTiles: texture.image.height / texture.image.width, yHeight: texture.image.width / texture.image.height, step: 0 };
 				texture.offset.y = ( 1.0 - threeMat.userData.rwx.animation.yHeight );
 				texture.repeat.set( 1, threeMat.userData.rwx.animation.yHeight );
 
@@ -415,7 +416,7 @@ function makeThreeMaterial( rwxMaterial, folder, textureExtension = "jpg", maskE
 		// The specular value in a Phong material is expressed using an hexadecimal value
 		// holding on 3 bytes, each representing a different color channel.
 		// Without any prior knowledge: we safely assume a white light instead
-		const whiteSpecular = Math.trunc( rwxMaterial.surface[ 2 ] * 255 );
+		const whiteSpecular = Math.trunc( rwxMaterial.surface[ 2 ] * glossRatio * 255 );
 		materialDict[ 'specular' ] = ( whiteSpecular << 16 ) + ( whiteSpecular << 8 ) + whiteSpecular;
 
 		// Same thing for the emissive value
@@ -432,8 +433,8 @@ function makeThreeMaterial( rwxMaterial, folder, textureExtension = "jpg", maskE
 	threeMat.userData.rwx = { material: rwxMaterial.clone() };
 	let loadingPromises = [];
 
-	threeMat.userData[ 'collision' ] = rwxMaterial.collision;
-	threeMat.userData[ 'ratio' ] = rwxMaterial.ratio;
+	threeMat.userData.collision = rwxMaterial.collision;
+	threeMat.userData.ratio = rwxMaterial.ratio;
 
 	const brightnessRatio = Math.max( ...rwxMaterial.surface );
 
@@ -502,8 +503,11 @@ function makeMeshToCurrentGroup( ctx ) {
 		const mesh = new Mesh( ctx.currentBufferGeometry, ctx.materialManager.getCurrentMaterialList().map( res => res.threeMat ) );
 
 		/* Keep track of tagged materials for this mesh */
-		mesh.userData[ 'taggedMaterials' ] = ctx.taggedMaterials;
+		mesh.userData.taggedMaterials = ctx.taggedMaterials;
 
+		/* Keep track of the clump tag itself */
+		ctx.currentGroup.userData.rwx.tag = ctx.tag;
+		ctx.tag = 0;
 		ctx.currentGroup.add( mesh );
 
 		resetMaterialTag( ctx );
@@ -704,7 +708,7 @@ function addBlock( ctx, w, h, d ) {
 	bufferGeometry.computeVertexNormals();
 
 	let mesh = new Mesh( bufferGeometry, [ material ] );
-	mesh.userData[ 'taggedMaterials' ] = {};
+	mesh.userData.taggedMaterials = {};
 	mesh.applyMatrix4( getFinalTransform( ctx ) );
 	ctx.currentGroup.add( mesh );
 
@@ -750,7 +754,7 @@ function addCone( ctx, h, r, n ) {
 	bufferGeometry.computeVertexNormals();
 
 	let mesh = new Mesh( bufferGeometry, [ ctx.materialManager.getCurrentMaterial().threeMat ] );
-	mesh.userData[ 'taggedMaterials' ] = {};
+	mesh.userData.taggedMaterials = {};
 	mesh.applyMatrix4( getFinalTransform( ctx ) );
 	ctx.currentGroup.add( mesh );
 
@@ -801,7 +805,7 @@ function addCylinder( ctx, h, br, tr, n ) {
 	bufferGeometry.computeVertexNormals();
 
 	let mesh = new Mesh( bufferGeometry, [ ctx.materialManager.getCurrentMaterial().threeMat ] );
-	mesh.userData[ 'taggedMaterials' ] = {};
+	mesh.userData.taggedMaterials = {};
 	mesh.applyMatrix4( getFinalTransform( ctx ) );
 	ctx.currentGroup.add( mesh );
 
@@ -844,7 +848,7 @@ function addDisc( ctx, h, r, n ) {
 
 	let mesh = new Mesh( bufferGeometry, [ ctx.materialManager.getCurrentMaterial().threeMat ] );
 	mesh.applyMatrix4( getFinalTransform( ctx ) );
-	mesh.userData[ 'taggedMaterials' ] = {};
+	mesh.userData.taggedMaterials = {};
 	ctx.currentGroup.add( mesh );
 
 }
@@ -919,7 +923,7 @@ function addHemisphere( ctx, r, n ) {
 	bufferGeometry.computeVertexNormals();
 
 	let mesh = new Mesh( bufferGeometry, [ ctx.materialManager.getCurrentMaterial().threeMat ] );
-	mesh.userData[ 'taggedMaterials' ] = {};
+	mesh.userData.taggedMaterials = {};
 	mesh.applyMatrix4( getFinalTransform( ctx ) );
 	ctx.currentGroup.add( mesh );
 
@@ -941,7 +945,7 @@ function addSphere( ctx, r, n ) {
 	geometry.addGroup( 0, geometry.getIndex().count, 0 );
 
 	let mesh = new Mesh( geometry, [ ctx.materialManager.getCurrentMaterial().threeMat ] );
-	mesh.userData[ 'taggedMaterials' ] = {};
+	mesh.userData.taggedMaterials = {};
 	mesh.applyMatrix4( getFinalTransform( ctx ) );
 	ctx.currentGroup.add( mesh );
 
@@ -950,6 +954,8 @@ function addSphere( ctx, r, n ) {
 function pushCurrentGroup( ctx ) {
 
 	let group = new Group();
+	group.userData.rwx = {};
+
 	ctx.currentGroup.add( group );
 	ctx.groupStack.push( ctx.currentGroup );
 	ctx.currentGroup = group;
@@ -1222,7 +1228,7 @@ function mergeGeometryRecursive( group, ctx, transform = group.matrix ) {
 				} );
 
 				// Adjust user data for tagged materials, all indices must also be offset
-				const taggedMaterials = child.userData[ 'taggedMaterials' ];
+				const taggedMaterials = child.userData.taggedMaterials;
 
 				if ( taggedMaterials !== undefined ) {
 
@@ -1342,8 +1348,8 @@ function flattenGroup( group, filter = () => true ) {
 
 	let finalMesh = new Mesh( ctx.bufferGeometry, ctx.materials );
 
-	finalMesh.userData[ 'rwx' ] = group.userData[ 'rwx' ];
-	finalMesh.userData[ 'taggedMaterials' ] = ctx.taggedMaterials;
+	finalMesh.userData.rwx = group.userData.rwx;
+	finalMesh.userData.taggedMaterials = ctx.taggedMaterials;
 
 	return finalMesh;
 
@@ -1569,6 +1575,7 @@ class RWXLoader extends Loader {
 		this.discRegex = /^ *(disc)(( +[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)){2}( +[-+]?[0-9]+)).*$/i;
 		this.hemisphereRegex = /^ *(hemisphere)(( +[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+))( +[-+]?[0-9]+)).*$/i;
 		this.sphereRegex = /^ *(sphere)(( +[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+))( +[-+]?[0-9]+)).*$/i;
+		this.tagRegex = /^ *(tag)( +[-+]?[0-9]+).*$/i;
 
 		this.jsZip = null;
 		this.jsZipUtils = null;
@@ -1730,7 +1737,9 @@ class RWXLoader extends Loader {
 
 			taggedMaterials: {},
 			quadRatioHint: null,
-			triangleRatioHint: null
+			triangleRatioHint: null,
+
+			tag: 0
 
 		};
 
@@ -1744,7 +1753,7 @@ class RWXLoader extends Loader {
 
 		// Ready root object group
 		ctx.groupStack.push( new Group() );
-		ctx.groupStack[ 0 ].userData[ 'rwx' ] = { axisAlignment: "none" };
+		ctx.groupStack[ 0 ].userData.rwx = { axisAlignment: "none" };
 		ctx.currentGroup = ctx.groupStack.slice( - 1 )[ 0 ];
 		ctx.transformStack.push( ctx.currentTransform );
 
@@ -1819,6 +1828,7 @@ class RWXLoader extends Loader {
 				transformBeforeProto = ctx.currentTransform;
 
 				ctx.rwxProtoDict[ name ] = new Group();
+				ctx.rwxProtoDict[ name ].userData.rwx = {};
 				ctx.currentTransform = new Matrix4();
 
 				resetGeometry( ctx );
@@ -2428,6 +2438,15 @@ class RWXLoader extends Loader {
 				} );
 
 				addSphere( ctx, sprops[ 0 ], sprops[ 1 ] );
+
+				continue;
+
+			}
+
+			res = this.tagRegex.exec( line );
+			if ( res != null ) {
+
+				ctx.tag = parseInt( res[ 2 ] );
 
 				continue;
 

@@ -82,9 +82,9 @@ test('RWXMaterial', () => {
     expect(rwxMat.color[1]).toBe(0.0);
     expect(rwxMat.color[2]).toBe(0.0);
     expect(rwxMat.surface).toHaveLength(3);
-    expect(rwxMat.surface[0]).toBe(0.0);
-    expect(rwxMat.surface[1]).toBe(0.0);
-    expect(rwxMat.surface[2]).toBe(0.0);
+    expect(rwxMat.surface[0]).toBe(0.69);
+    expect(rwxMat.surface[1]).toBe(0.5);
+    expect(rwxMat.surface[2]).toBe(0.5);
     expect(rwxMat.opacity).toBe(1.0);
     expect(rwxMat.lightsampling).toBe(LightSampling.FACET);
     expect(rwxMat.geometrysampling).toBe(GeometrySampling.SOLID);
@@ -95,7 +95,7 @@ test('RWXMaterial', () => {
     expect(rwxMat.mask).toBeNull();
     expect(rwxMat.tag).toBe(0);
 
-    expect(rwxMat.getMatSignature()).toBe("0.0000.0000.000_0.0000.0000.000_1.000_1_3_1_1___true_0_1.00");
+    expect(rwxMat.getMatSignature()).toBe("0.0000.0000.000_0.6900.5000.500_1.000_1_3_1_1___true_0_1.00");
 
     const clonedMat = rwxMat.clone();
 
@@ -104,7 +104,7 @@ test('RWXMaterial', () => {
     rwxMat.tag = 100;
     rwxMat.ratio = 0.5;
 
-    expect(rwxMat.getMatSignature()).toBe("0.0000.0000.000_0.0000.0000.000_1.000_1_3_1_1_wood1_wood1m_true_100_0.50");
+    expect(rwxMat.getMatSignature()).toBe("0.0000.0000.000_0.6900.5000.500_1.000_1_3_1_1_wood1_wood1m_true_100_0.50");
 
     rwxMat.color[0] = 1;
     rwxMat.color[1] = 2;
@@ -132,9 +132,9 @@ test('RWXMaterial', () => {
     expect(clonedMat.color[1]).toBe(0.0);
     expect(clonedMat.color[2]).toBe(0.0);
     expect(clonedMat.surface).toHaveLength(3);
-    expect(clonedMat.surface[0]).toBe(0.0);
-    expect(clonedMat.surface[1]).toBe(0.0);
-    expect(clonedMat.surface[2]).toBe(0.0);
+    expect(clonedMat.surface[0]).toBe(0.69);
+    expect(clonedMat.surface[1]).toBe(0.5);
+    expect(clonedMat.surface[2]).toBe(0.5);
     expect(clonedMat.opacity).toBe(1.0);
     expect(clonedMat.lightsampling).toBe(LightSampling.FACET);
     expect(clonedMat.geometrysampling).toBe(GeometrySampling.SOLID);
