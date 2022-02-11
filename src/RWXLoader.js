@@ -1361,7 +1361,7 @@ class RWXMaterial {
 
 	  // Material related properties start here
 		this.color = [ 0.0, 0.0, 0.0 ]; // Red, Green, Blue
-		this.surface = [ 0.69, 0.5, 0.5 ]; // Ambience (recommended AW 2.2), Diffusion, Specularity
+		this.surface = [ 0.69, 0.0, 0.0 ]; // Ambience (recommended AW 2.2), Diffusion, Specularity
 		this.opacity = 1.0;
 		this.lightsampling = LightSampling.FACET;
 		this.geometrysampling = GeometrySampling.SOLID;
