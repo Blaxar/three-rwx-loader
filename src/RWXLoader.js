@@ -1503,12 +1503,12 @@ class RWXMaterialManager {
 
 	}
 
-	resetCurrentMaterialList() {
+	resetCurrentMaterialList( newMat = true ) {
 
 		this.currentMaterialID = null;
 		this.currentMaterialList = [];
 		this.currentMaterialSignature = "";
-		this.currentRWXMaterial = new RWXMaterial();
+		this.currentRWXMaterial = newMat ? new RWXMaterial() : this.currentRWXMaterial;
 
 	}
 
@@ -1849,7 +1849,7 @@ class RWXLoader extends Loader {
 
 				resetGeometry( ctx );
 
-				ctx.materialManager.resetCurrentMaterialList();
+				ctx.materialManager.resetCurrentMaterialList( false );
 
 				continue;
 
@@ -2452,6 +2452,8 @@ class RWXLoader extends Loader {
 			}
 
 		}
+
+		ctx.materialManager.resetCurrentMaterialList();
 
 		// We're done, return the root group to get the whole object, we take the decameter unit into account
 		ctx.groupStack[ 0 ].applyMatrix4( scale_ten );
