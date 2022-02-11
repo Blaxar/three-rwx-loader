@@ -1833,7 +1833,6 @@ class RWXLoader extends Loader {
 
 				resetGeometry( ctx );
 
-				ctx.materialManager.currentRWXMaterial = new RWXMaterial();
 				ctx.currentGroup = ctx.rwxProtoDict[ name ];
 
 				continue;
