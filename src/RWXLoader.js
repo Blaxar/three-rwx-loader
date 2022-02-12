@@ -2498,4 +2498,4 @@ class RWXLoader extends Loader {
 
 export default RWXLoader;
 export { RWXMaterial, RWXMaterialManager, makeThreeMaterial, makeMaskPromise, applyTextureToMat,
-	LightSampling, GeometrySampling, TextureMode, MaterialMode, flattenGroup };
+	LightSampling, GeometrySampling, TextureMode, MaterialMode, RWXtag, flattenGroup };
