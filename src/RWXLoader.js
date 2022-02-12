@@ -968,6 +968,21 @@ function popCurrentGroup( ctx ) {
 
 }
 
+function pushCurrentMaterial( ctx ) {
+
+	ctx.materialStack.push( ctx.materialManager.currentRWXMaterial );
+	ctx.materialManager.currentRWXMaterial = ctx.materialManager.currentRWXMaterial.clone();
+	ctx.materialManager.resetCurrentMaterialList( ctx.materialManager.currentRWXMaterial );
+
+}
+
+function popCurrentMaterial( ctx ) {
+
+	ctx.materialManager.currentRWXMaterial = ctx.materialStack.pop();
+	ctx.materialManager.resetCurrentMaterialList( ctx.materialManager.currentRWXMaterial );
+
+}
+
 function pushCurrentTransform( ctx ) {
 
 	ctx.transformStack.push( ctx.currentTransform );
@@ -1503,12 +1518,12 @@ class RWXMaterialManager {
 
 	}
 
-	resetCurrentMaterialList( newMat = true ) {
+	resetCurrentMaterialList( currentMat = new RWXMaterial() ) {
 
 		this.currentMaterialID = null;
 		this.currentMaterialList = [];
 		this.currentMaterialSignature = "";
-		this.currentRWXMaterial = newMat ? new RWXMaterial() : this.currentRWXMaterial;
+		this.currentRWXMaterial = currentMat;
 
 	}
 
@@ -1717,6 +1732,8 @@ class RWXLoader extends Loader {
 			transformStack: [],
 			transformSaves: [],
 
+			materialStack: [],
+
 			currentTransform: new Matrix4(),
 			currentBufferGeometry: null,
 			currentBufferVertices: [],
@@ -1756,6 +1773,7 @@ class RWXLoader extends Loader {
 		ctx.groupStack[ 0 ].userData.rwx = { axisAlignment: "none" };
 		ctx.currentGroup = ctx.groupStack.slice( - 1 )[ 0 ];
 		ctx.transformStack.push( ctx.currentTransform );
+		ctx.materialStack.push( ctx.materialManager.currentMaterial );
 
 		for ( let i = 0, l = lines.length; i < l; i ++ ) {
 
@@ -1779,6 +1797,7 @@ class RWXLoader extends Loader {
 				resetGeometry( ctx );
 
 				pushCurrentGroup( ctx );
+				pushCurrentMaterial( ctx );
 				pushCurrentTransform( ctx );
 
 				continue;
@@ -1791,11 +1810,10 @@ class RWXLoader extends Loader {
 				makeMeshToCurrentGroup( ctx );
 
 				popCurrentTransform( ctx );
+				popCurrentMaterial( ctx );
 				popCurrentGroup( ctx );
 
 				resetGeometry( ctx );
-
-				ctx.materialManager.resetCurrentMaterialList();
 
 				continue;
 
@@ -1826,6 +1844,7 @@ class RWXLoader extends Loader {
 
 				groupBeforeProto = ctx.currentGroup;
 				transformBeforeProto = ctx.currentTransform;
+				pushCurrentMaterial( ctx );
 
 				ctx.rwxProtoDict[ name ] = new Group();
 				ctx.rwxProtoDict[ name ].userData.rwx = {};
@@ -1846,10 +1865,9 @@ class RWXLoader extends Loader {
 
 				ctx.currentGroup = groupBeforeProto;
 				ctx.currentTransform = transformBeforeProto;
+				popCurrentMaterial( ctx );
 
 				resetGeometry( ctx );
-
-				ctx.materialManager.resetCurrentMaterialList( false );
 
 				continue;
 
