@@ -50,7 +50,7 @@ $ npm test
 ## Linting
 
 ```bash
-$ npx eslint src/RWXLoader.js
+$ npm run lint
 ```
 
 ### References:

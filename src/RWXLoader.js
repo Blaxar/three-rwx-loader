@@ -54,69 +54,12 @@ const MaterialMode = {
 	DOUBLE: 2
 };
 
-const RWXtag = {
-	PELVIS: 1,
-	BACK: 2,
-	NECK: 3,
-	HEAD: 4,
-	RTSTERNUM: 5,
-	RTSHOULDER: 6,
-	RTELBOW: 7,
-	RTWRIST: 8,
-	RTFINGERS: 9,
-	LFSTERNUM: 10,
-	LFSHOULDER: 11,
-	LFELBOW: 12,
-	LFWRIST: 13,
-	LFFINGERS: 14,
-	RTHIP: 15,
-	RTKNEE: 16,
-	RTANKLE: 17,
-	RTTOES: 18,
-	LFHIP: 19,
-	LFKNEE: 20,
-	LFANKLE: 21,
-	LFTOES: 22,
-	NECK2: 23,
-	TAIL: 24,
-	TAIL2: 25,
-	TAIL3: 26,
-	TAIL4: 27,
-	OBJ1: 28,
-	OBJ2: 29,
-	OBJ3: 30,
-	HAIR: 31,
-	HAIR2: 32,
-	HAIR3: 33,
-	HAIR4: 34,
-	RTBREAST: 35,
-	LFBREAST: 36,
-	RTEYE: 37,
-	LFEYE: 38,
-	LIPS: 39,
-	NOSE: 40,
-	RTEAR: 41,
-	LFEAR: 42,
-	SIGN: 100,
-	PICTURE: 200
-};
+const signTag = 100;
+const pictureTag = 200;
 
-const sqrdRatioHintDelta = 0.3 ** 2;
+const ratioHintDelta = 0.3;
+const sqrdRatioHintDelta = ratioHintDelta * ratioHintDelta;
 const glossRatio = 0.1;
-
-function getFinalTransform( ctx ) {
-
-	let transform = new Matrix4();
-
-	ctx.transformStack.forEach( ( t ) => {
-
-		transform.multiply( t );
-
-	} );
-
-	return transform.multiply( ctx.currentTransform );
-
-}
 
 function triangulateFacesWithShapes( vertices, uvs, loop ) {
 
@@ -709,7 +652,7 @@ function addBlock( ctx, w, h, d ) {
 
 	let mesh = new Mesh( bufferGeometry, [ material ] );
 	mesh.userData.taggedMaterials = {};
-	mesh.applyMatrix4( getFinalTransform( ctx ) );
+	mesh.applyMatrix4( ctx.currentTransform );
 	ctx.currentGroup.add( mesh );
 
 }
@@ -755,7 +698,7 @@ function addCone( ctx, h, r, n ) {
 
 	let mesh = new Mesh( bufferGeometry, [ ctx.materialManager.getCurrentMaterial().threeMat ] );
 	mesh.userData.taggedMaterials = {};
-	mesh.applyMatrix4( getFinalTransform( ctx ) );
+	mesh.applyMatrix4( ctx.currentTransform );
 	ctx.currentGroup.add( mesh );
 
 }
@@ -806,7 +749,7 @@ function addCylinder( ctx, h, br, tr, n ) {
 
 	let mesh = new Mesh( bufferGeometry, [ ctx.materialManager.getCurrentMaterial().threeMat ] );
 	mesh.userData.taggedMaterials = {};
-	mesh.applyMatrix4( getFinalTransform( ctx ) );
+	mesh.applyMatrix4( ctx.currentTransform );
 	ctx.currentGroup.add( mesh );
 
 }
@@ -847,7 +790,7 @@ function addDisc( ctx, h, r, n ) {
 	bufferGeometry.computeVertexNormals();
 
 	let mesh = new Mesh( bufferGeometry, [ ctx.materialManager.getCurrentMaterial().threeMat ] );
-	mesh.applyMatrix4( getFinalTransform( ctx ) );
+	mesh.applyMatrix4( ctx.currentTransform );
 	mesh.userData.taggedMaterials = {};
 	ctx.currentGroup.add( mesh );
 
@@ -924,7 +867,7 @@ function addHemisphere( ctx, r, n ) {
 
 	let mesh = new Mesh( bufferGeometry, [ ctx.materialManager.getCurrentMaterial().threeMat ] );
 	mesh.userData.taggedMaterials = {};
-	mesh.applyMatrix4( getFinalTransform( ctx ) );
+	mesh.applyMatrix4( ctx.currentTransform );
 	ctx.currentGroup.add( mesh );
 
 }
@@ -946,7 +889,7 @@ function addSphere( ctx, r, n ) {
 
 	let mesh = new Mesh( geometry, [ ctx.materialManager.getCurrentMaterial().threeMat ] );
 	mesh.userData.taggedMaterials = {};
-	mesh.applyMatrix4( getFinalTransform( ctx ) );
+	mesh.applyMatrix4( ctx.currentTransform );
 	ctx.currentGroup.add( mesh );
 
 }
@@ -956,15 +899,17 @@ function pushCurrentGroup( ctx ) {
 	let group = new Group();
 	group.userData.rwx = {};
 
+	group.applyMatrix4( ctx.currentTransform );
 	ctx.currentGroup.add( group );
-	ctx.groupStack.push( ctx.currentGroup );
 	ctx.currentGroup = group;
+	ctx.currentTransform = new Matrix4();
 
 }
 
 function popCurrentGroup( ctx ) {
 
-	ctx.currentGroup = ctx.groupStack.pop();
+	ctx.currentTransform = ctx.currentGroup.matrix.clone();
+	ctx.currentGroup = ctx.currentGroup.parent;
 
 }
 
@@ -980,19 +925,6 @@ function popCurrentMaterial( ctx ) {
 
 	ctx.materialManager.currentRWXMaterial = ctx.materialStack.pop();
 	ctx.materialManager.resetCurrentMaterialList( ctx.materialManager.currentRWXMaterial );
-
-}
-
-function pushCurrentTransform( ctx ) {
-
-	ctx.transformStack.push( ctx.currentTransform );
-	ctx.currentTransform = new Matrix4();
-
-}
-
-function popCurrentTransform( ctx ) {
-
-	ctx.currentTransform = ctx.transformStack.pop();
 
 }
 
@@ -1726,10 +1658,9 @@ class RWXLoader extends Loader {
 
 		let ctx = {
 
-			groupStack: [],
+			rootGroup: null,
 			currentGroup: null,
 
-			transformStack: [],
 			transformSaves: [],
 
 			materialStack: [],
@@ -1769,10 +1700,9 @@ class RWXLoader extends Loader {
 		const lines = str.split( /[\n\r]+/g );
 
 		// Ready root object group
-		ctx.groupStack.push( new Group() );
-		ctx.groupStack[ 0 ].userData.rwx = { axisAlignment: "none" };
-		ctx.currentGroup = ctx.groupStack.slice( - 1 )[ 0 ];
-		ctx.transformStack.push( ctx.currentTransform );
+		ctx.rootGroup = new Group();
+		ctx.rootGroup.userData.rwx = { axisAlignment: "none" };
+		ctx.currentGroup = ctx.rootGroup;
 		ctx.materialStack.push( ctx.materialManager.currentMaterial );
 
 		for ( let i = 0, l = lines.length; i < l; i ++ ) {
@@ -1798,7 +1728,6 @@ class RWXLoader extends Loader {
 
 				pushCurrentGroup( ctx );
 				pushCurrentMaterial( ctx );
-				pushCurrentTransform( ctx );
 
 				continue;
 
@@ -1809,7 +1738,6 @@ class RWXLoader extends Loader {
 
 				makeMeshToCurrentGroup( ctx );
 
-				popCurrentTransform( ctx );
 				popCurrentMaterial( ctx );
 				popCurrentGroup( ctx );
 
@@ -1876,11 +1804,10 @@ class RWXLoader extends Loader {
 			res = this.protoinstanceRegex.exec( line );
 			if ( res != null ) {
 
-				let name = res[ 2 ];
-				let protoMesh = ctx.rwxProtoDict[ name ].clone();
-				let tmpTransform = getFinalTransform( ctx );
-				protoMesh.applyMatrix4( tmpTransform );
-				ctx.currentGroup.add( protoMesh );
+				const name = res[ 2 ];
+				const proto = ctx.rwxProtoDict[ name ].clone();
+				proto.applyMatrix4( ctx.currentTransform );
+				ctx.currentGroup.add( proto );
 
 				continue;
 
@@ -1928,7 +1855,7 @@ class RWXLoader extends Loader {
 				const tag = res.slice( - 1 )[ 0 ];
 				if ( tag !== undefined ) {
 
-					if ( tag == RWXtag.SIGN ) {
+					if ( tag == signTag ) {
 
 						setMaterialRatio( ctx, vId[ 0 ], vId[ 1 ], vId[ 2 ] );
 
@@ -1977,7 +1904,7 @@ class RWXLoader extends Loader {
 				const tag = res.slice( - 1 )[ 0 ];
 				if ( tag !== undefined ) {
 
-					if ( tag == RWXtag.SIGN ) {
+					if ( tag == signTag ) {
 
 						setMaterialRatio( ctx, vId[ 0 ], vId[ 1 ], vId[ 2 ], vId[ 3 ] );
 
@@ -2057,7 +1984,7 @@ class RWXLoader extends Loader {
 				} );
 
 				let tmpVertex = new Vector4( vprops[ 0 ], vprops[ 1 ], vprops[ 2 ] );
-				tmpVertex.applyMatrix4( getFinalTransform( ctx ) );
+				tmpVertex.applyMatrix4( ctx.currentTransform );
 
 				ctx.currentBufferVertices.push( tmpVertex.x, tmpVertex.y, tmpVertex.z );
 
@@ -2358,7 +2285,7 @@ class RWXLoader extends Loader {
 			res = this.axisalignmentRegex.exec( line );
 			if ( res != null ) {
 
-				ctx.groupStack[ 0 ].userData.rwx.axisAlignment = res[ 2 ].toLowerCase();
+				ctx.rootGroup.userData.rwx.axisAlignment = res[ 2 ].toLowerCase();
 
 				continue;
 
@@ -2474,21 +2401,21 @@ class RWXLoader extends Loader {
 		ctx.materialManager.resetCurrentMaterialList();
 
 		// We're done, return the root group to get the whole object, we take the decameter unit into account
-		ctx.groupStack[ 0 ].applyMatrix4( scale_ten );
+		ctx.rootGroup.applyMatrix4( scale_ten );
 
 		if ( this.waitFullLoad ) {
 
 			// Wait all mask futures before returning loaded object
 			Promise.all( ctx.loadingPromises ).then( ( ) => {
 
-				onParse( this.flatten ? flattenGroup( ctx.groupStack[ 0 ] ) : ctx.groupStack[ 0 ] );
+				onParse( this.flatten ? flattenGroup( ctx.rootGroup ) : ctx.rootGroup );
 
 			} );
 
 		} else {
 
 			// Return immediately
-			onParse( this.flatten ? flattenGroup( ctx.groupStack[ 0 ] ) : ctx.groupStack[ 0 ] );
+			onParse( this.flatten ? flattenGroup( ctx.rootGroup ) : ctx.rootGroup );
 
 		}
 
@@ -2498,4 +2425,4 @@ class RWXLoader extends Loader {
 
 export default RWXLoader;
 export { RWXMaterial, RWXMaterialManager, makeThreeMaterial, makeMaskPromise, applyTextureToMat,
-	LightSampling, GeometrySampling, TextureMode, MaterialMode, RWXtag, flattenGroup };
+	       LightSampling, GeometrySampling, TextureMode, MaterialMode, signTag, pictureTag, flattenGroup };
