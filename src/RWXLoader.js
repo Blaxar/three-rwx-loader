@@ -447,10 +447,6 @@ function makeMeshToCurrentGroup( ctx ) {
 
 		/* Keep track of tagged materials for this mesh */
 		mesh.userData.taggedMaterials = ctx.taggedMaterials;
-
-		/* Keep track of the clump tag itself */
-		ctx.currentGroup.userData.rwx.tag = ctx.tag;
-		ctx.tag = 0;
 		ctx.currentGroup.add( mesh );
 
 		resetMaterialTag( ctx );
@@ -1687,8 +1683,6 @@ class RWXLoader extends Loader {
 			quadRatioHint: null,
 			triangleRatioHint: null,
 
-			tag: 0
-
 		};
 
 		let transformBeforeProto = null;
@@ -2390,7 +2384,8 @@ class RWXLoader extends Loader {
 			res = this.tagRegex.exec( line );
 			if ( res != null ) {
 
-				ctx.tag = parseInt( res[ 2 ] );
+				/* Keep track of the clump tag */
+				ctx.currentGroup.userData.rwx.tag = parseInt( res[ 2 ] );
 
 				continue;
 
