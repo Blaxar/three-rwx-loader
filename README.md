@@ -41,6 +41,53 @@ rwxLoader.load('object.rwx', (rwx) => {
     });
 ```
 
+## API documentation
+
+By virtue of inheriting from the *three.js* `Loader` class: this loader comes with a set of expected setters such as `setPath` and `setResourcePath`.
+
+However, it also brings its specific set of methods as described below:
+
+- `setJSZip( jsZip: JSZip, jsZipUtils: JSZipUtils ): this`
+
+  - Provide jsZip and jsZipUtils modules to the loader, required for proper texture masks handling.
+
+- `setTextureExtension( textureExtension: string ): this`
+
+  - Set the expected texture files extension, '.jpg' by default.
+
+- `setMaskExtension( maskExtension: string ): this`
+
+  - Set the expected texture mask files extension, '.zip' by default.
+
+- `setWaitFullLoad( waitFullLoad: boolean ): this`
+
+  - Wether or not to wait for full loading completion before returning the objet, `false` by default (meaning textures are loaded asynchronously).
+
+  - Set this to `true` for the loader to only return the object once it's fully loaded.
+
+- `setFlatten( flatten: boolean ): this`
+
+  - Wether or not to flatten the objet, `false` by default (the object will consist of nested `Group`s).
+Set this to `true` to get a single `Mesh` holding everything.
+
+  - In both cases: the object will inherit from `Object3D` (which is a common parent of both `Mesh` and `Group`).
+
+- `setUseBasicMaterial( useBasicMaterial: boolean ): this`
+
+  - Wether or not to use `MeshBasicMaterial` instead of `MeshPhongMaterial`, `false` by default.
+
+- `setRWXMaterialManager( rwxMgr: RWXMaterialManager ): this`
+
+  - Set a custom `RWXMaterialManager` to be used by the loader, one will be internally instanciated by default if none is provided.
+
+- `setTextureEncoding( textureEncoding: constant ): this`
+
+  - Set the *three.js* texture encoding mode used for textures loaded for materials (default is `sRGBEncoding`).
+
+- `setEnableTextures( enableTextures: boolean ): this`
+
+  - Enable textures (and masks) to be loaded, `true` by default.
+
 ## Testing
 
 ```bash

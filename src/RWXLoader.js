@@ -21,6 +21,7 @@ import {
 	TextureLoader,
 	RepeatWrapping,
 	LinearEncoding,
+	sRGBEncoding,
 	FrontSide,
 	DoubleSide,
 	Group,
@@ -175,7 +176,7 @@ function triangulateFacesWithShapes( vertices, uvs, loop ) {
 
 	newVertices.push( ...bufferPosition.array );
 
-	return [ newVertices, newUvs, faces ];
+	return faces;
 
 }
 
@@ -198,14 +199,14 @@ function makeMaskPromise( bmpURI, threeMat, loader, textureEncoding = LinearEnco
 
 }
 
-function applyTextureToMat( threeMat, folder, textureName, textureExtension = "jpg", maskName = null,
-	maskExtension = "zip", jsZip = null, jsZipUtils = null, loadingPromises = [], textureEncoding = LinearEncoding ) {
+function applyTextureToMat( threeMat, folder, textureName, textureExtension = '.jpg', maskName = null,
+	maskExtension = '.zip', jsZip = null, jsZipUtils = null, loadingPromises = [], textureEncoding = sRGBEncoding ) {
 
 	let loader = new TextureLoader();
 
 	loadingPromises.push( new Promise( ( resolveTex ) => {
 
-		const texturePath = folder + '/' + textureName + '.' + textureExtension;
+		const texturePath = folder + '/' + textureName + textureExtension;
 		loader.load( texturePath, ( texture ) => {
 
 			texture.wrapS = RepeatWrapping;
@@ -234,11 +235,11 @@ function applyTextureToMat( threeMat, folder, textureName, textureExtension = "j
 		threeMat.alphaTest = 0.2;
 		threeMat.transparent = true;
 
-		if ( maskExtension == "zip" && jsZip != null && jsZipUtils != null ) {
+		if ( maskExtension == '.zip' && jsZip != null && jsZipUtils != null ) {
 
 			// We try to extract the bmp mask from the archive
 			const maskBaseName = maskName;
-			const zipPath = folder + '/' + maskBaseName + '.' + maskExtension;
+			const zipPath = folder + '/' + maskBaseName + maskExtension;
 
 			// We load the mask asynchronously using JSZip and JSZipUtils (if available)
 			loadingPromises.push( new jsZip.external.Promise( function ( resolve, reject ) {
@@ -264,7 +265,7 @@ function applyTextureToMat( threeMat, folder, textureName, textureExtension = "j
 
 					if ( key.toLowerCase() == ( maskBaseName.toLowerCase() + '.bmp' ) ) {
 
-						return zip.file( key ).async( "uint8array" );
+						return zip.file( key ).async( 'uint8array' );
 
 					}
 
@@ -273,9 +274,9 @@ function applyTextureToMat( threeMat, folder, textureName, textureExtension = "j
 			} ).then( function success( buffer ) {
 
 				// Load the bmp image into a data uri string
-				let bmpURI = "data:image/bmp;base64,";
+				let bmpURI = 'data:image/bmp;base64,';
 				const chunkSize = 4056;
-				let dataStr = "";
+				let dataStr = '';
 
 				// Chunking the buffer to maximize browser compatibility and avoid exceeding some size limit
 				// during string creation when using 'String.fromCharCode'
@@ -296,9 +297,9 @@ function applyTextureToMat( threeMat, folder, textureName, textureExtension = "j
 
 			} ) );
 
-		} else if ( maskExtension != 'zip' ) {
+		} else if ( maskExtension != '.zip' ) {
 
-			const bmpPath = folder + '/' + maskName + '.' + maskExtension;
+			const bmpPath = folder + '/' + maskName + maskExtension;
 			loadingPromises.push( makeMaskPromise( bmpPath, threeMat, loader ) );
 
 		}
@@ -307,8 +308,8 @@ function applyTextureToMat( threeMat, folder, textureName, textureExtension = "j
 
 }
 
-function makeThreeMaterial( rwxMaterial, folder, textureExtension = "jpg", maskExtension = "zip",
-	jsZip = null, jsZipUtils = null, useBasicMaterial = false, textureEncoding = LinearEncoding ) {
+function makeThreeMaterial( rwxMaterial, folder, textureExtension = '.jpg', maskExtension = '.zip',
+	jsZip = null, jsZipUtils = null, useBasicMaterial = false, textureEncoding = sRGBEncoding ) {
 
 	let materialDict = { name: rwxMaterial.getMatSignature() };
 
@@ -441,9 +442,9 @@ function makeMeshToCurrentGroup( ctx ) {
 		ctx.currentBufferGeometry.uvsNeedUpdate = true;
 		ctx.currentBufferGeometry.computeVertexNormals();
 
-		ctx.loadingPromises = ctx.loadingPromises.concat( ctx.materialManager.getCurrentMaterialList().map( res => res.loadingPromises ) );
+		ctx.loadingPromises = ctx.loadingPromises.concat( ctx.materialManager.getCommitedMaterialList().map( res => res.loadingPromises ) );
 
-		const mesh = new Mesh( ctx.currentBufferGeometry, ctx.materialManager.getCurrentMaterialList().map( res => res.threeMat ) );
+		const mesh = new Mesh( ctx.currentBufferGeometry, ctx.materialManager.getCommitedMaterialList().map( res => res.threeMat ) );
 
 		/* Keep track of tagged materials for this mesh */
 		mesh.userData.taggedMaterials = ctx.taggedMaterials;
@@ -461,6 +462,7 @@ function commitBufferGeometryGroup( ctx ) {
 
 	// Make new material group out of existing data
 	ctx.currentBufferGeometry.addGroup( ctx.currentBufferGroupFirstFaceID, ctx.currentBufferFaceCount * 3, ctx.previousMaterialID );
+	ctx.materialManager.commitMaterials();
 
 	// Set everything ready for the next group to start
 	ctx.previousMaterialID = ctx.materialManager.getCurrentMaterialID();
@@ -534,11 +536,7 @@ function addPolygon( ctx, indices ) {
 
 	}
 
-	const [ newVertices, newUVs, newFaces ] =
-		triangulateFacesWithShapes( ctx.currentBufferVertices, ctx.currentBufferUVs, indices );
-
-	ctx.currentBufferVertices.push( ...newVertices );
-	ctx.currentBufferUVs.push( ...newUVs );
+	const newFaces = triangulateFacesWithShapes( ctx.currentBufferVertices, ctx.currentBufferUVs, indices );
 
 	for ( let lf = 0; lf < newFaces.length; lf += 3 ) {
 
@@ -558,7 +556,7 @@ function makeVertexCircle( h, r, n, v = null ) {
 
 	if ( n < 3 ) {
 
-		throw ( "Need at least 3 sides to make a vertex circle" );
+		throw ( 'Need at least 3 sides to make a vertex circle' );
 
 	}
 
@@ -729,7 +727,7 @@ function addCylinder( ctx, h, br, tr, n ) {
 	// We weave faces across both circles (up and down) to make a cylinder
 	for ( let i = 0; i < nbSides; i ++ ) {
 
-		  index.push( firstTopID + i, i, ( i + 1 ) % nbSides );
+		index.push( firstTopID + i, i, ( i + 1 ) % nbSides );
 		index.push( firstTopID + i, ( i + 1 ) % nbSides, firstTopID + ( ( i + 1 ) % nbSides ) );
 
 	}
@@ -957,12 +955,12 @@ function commitMaterialTag( ctx, tag ) {
 	}
 
 	// We need to keep track of the position of the tagged material within the material list
-	// of the mesh, we don't have the mesh yet but we already know which position from which
+	// of the mesh, we don't have the mesh yet but we already know the position from which
 	// the material will be accessible, thanks to the material manager, see makeMeshToCurrentGroup(...)
-	// to see how sed mesh is finally defined
+	// to see how said mesh is finally defined
 	if ( ! ctx.taggedMaterials[ tag.toString() ].includes( ctx.materialManager.getCurrentMaterialID() ) ) {
 
-		ctx.taggedMaterials[ tag.toString() ].push( ctx.materialManager.getCurrentMaterialID() );
+		//ctx.taggedMaterials[ tag.toString() ].push( ctx.materialManager.getCurrentMaterialID() );
 
 	}
 
@@ -1350,7 +1348,7 @@ class RWXMaterial {
 		const opacity = this.opacity.toFixed( 3 );
 		const lightSampling = this.lightsampling.toString();
 		const geometrySampling = this.geometrysampling.toString();
-		let textureMode = "";
+		let textureMode = '';
 
 		this.texturemodes.forEach( ( tm ) => {
 
@@ -1359,8 +1357,8 @@ class RWXMaterial {
 		} );
 
 		const materialMode = this.materialmode.toString();
-		const texture = this.texture === null ? "" : this.texture;
-		const mask = this.mask === null ? "" : this.mask;
+		const texture = this.texture === null ? '' : this.texture;
+		const mask = this.mask === null ? '' : this.mask;
 
 		const collision = this.collision.toString();
 
@@ -1376,9 +1374,9 @@ class RWXMaterial {
 
 class RWXMaterialManager {
 
-	constructor( folder, textureExtension = "jpg", maskExtension =
-	"zip", jsZip = null, jsZipUtils = null, useBasicMaterial = false,
-	textureEncoding = LinearEncoding ) {
+	constructor( folder, textureExtension = '.jpg', maskExtension =
+	'.zip', jsZip = null, jsZipUtils = null, useBasicMaterial = false,
+	textureEncoding = sRGBEncoding ) {
 
 		this.folder = folder;
 		this.textureExtension = textureExtension;
@@ -1390,7 +1388,9 @@ class RWXMaterialManager {
 		this.threeMaterialMap = {};
 		this.currentMaterialID = null;
 		this.currentMaterialList = [];
-		this.currentMaterialSignature = "";
+		this.signatureMap = {};
+		this.commitedMaterialsAmount = 0;
+		this.currentMaterialSignature = '';
 		this.useBasicMaterial = useBasicMaterial;
 		this.textureEncoding = textureEncoding;
 
@@ -1409,11 +1409,20 @@ class RWXMaterialManager {
 				this.useBasicMaterial, this.textureEncoding );
 			this.threeMaterialMap[ materialSignature ].needsUpdate = true;
 
+			this.threeMaterialMap[ materialSignature ].signature = materialSignature;
+
 		}
 
 		if ( this.currentMaterialSignature != materialSignature ) {
 
 			this.currentMaterialSignature = materialSignature;
+
+			// Check if this material doesn't already sit in the current list, if it does: we just return its index
+			if ( this.signatureMap[ materialSignature ] !== undefined ) {
+
+				return this.signatureMap[ materialSignature ];
+
+			}
 
 			// We're onto a new material given the current list, we need to add it to the list and increment the ID
 			if ( this.currentMaterialID === null ) {
@@ -1426,6 +1435,7 @@ class RWXMaterialManager {
 
 			}
 
+			this.signatureMap[ materialSignature ] = this.currentMaterialID;
 			this.currentMaterialList.push( this.threeMaterialMap[ materialSignature ] );
 
 		}
@@ -1450,8 +1460,10 @@ class RWXMaterialManager {
 
 		this.currentMaterialID = null;
 		this.currentMaterialList = [];
-		this.currentMaterialSignature = "";
+		this.signatureMap = {};
+		this.currentMaterialSignature = '';
 		this.currentRWXMaterial = currentMat;
+		this.commitedMaterialsAmount = 0;
 
 	}
 
@@ -1470,6 +1482,18 @@ class RWXMaterialManager {
 			}
 
 		}
+
+	}
+
+	commitMaterials() {
+
+		this.commitedMaterialsAmount = this.currentMaterialList.length;
+
+	}
+
+	getCommitedMaterialList() {
+
+		return this.currentMaterialList.slice( 0, this.commitedMaterialsAmount );
 
 	}
 
@@ -1522,14 +1546,15 @@ class RWXLoader extends Loader {
 
 		this.jsZip = null;
 		this.jsZipUtils = null;
-		this.textureExtension = 'jpg';
-		this.maskExtension = 'zip';
+		this.textureExtension = '.jpg';
+		this.maskExtension = '.zip';
 
 		this.waitFullLoad = false;
 		this.flatten = false;
 		this.useBasicMaterial = false;
 		this.rwxMaterialManager = null;
-		this.textureEncoding = LinearEncoding;
+		this.textureEncoding = sRGBEncoding;
+		this.enableTextures = true;
 
 	}
 
@@ -1543,7 +1568,7 @@ class RWXLoader extends Loader {
 
 	}
 
-	// Set the expected texture files extension, 'jpg' by default
+	// Set the expected texture files extension, '.jpg' by default
 	setTextureExtension( textureExtension ) {
 
 		this.textureExtension = textureExtension;
@@ -1552,7 +1577,7 @@ class RWXLoader extends Loader {
 
 	}
 
-	// Set the expected texture mask files extension, 'zip' by default
+	// Set the expected texture mask files extension, '.zip' by default
 	setMaskExtension( maskExtension ) {
 
 		this.maskExtension = maskExtension;
@@ -1600,10 +1625,19 @@ class RWXLoader extends Loader {
 
 	}
 
-	// Set the texture encoding mode used for textures and masks loaded for materials (default is LinearEncoding)
+	// Set the texture encoding mode used for textures loaded for materials (default is sRGBEncoding)
 	setTextureEncoding( textureEncoding ) {
 
 		this.textureEncoding = textureEncoding;
+
+		return this;
+
+	}
+
+	// Enable textures (and masks) to be loaded, 'true' by default
+	setEnableTextures( enableTextures ) {
+
+		this.enableTextures = enableTextures;
 
 		return this;
 
@@ -1618,7 +1652,7 @@ class RWXLoader extends Loader {
 		let loader = new FileLoader( this.manager );
 		loader.setRequestHeader( this.requestHeader );
 		loader.setWithCredentials( this.withCredentials );
-		loader.load( path + "/" + rwxFile, function ( text ) {
+		loader.load( path + '/' + rwxFile, function ( text ) {
 
 			try {
 
@@ -1695,7 +1729,7 @@ class RWXLoader extends Loader {
 
 		// Ready root object group
 		ctx.rootGroup = new Group();
-		ctx.rootGroup.userData.rwx = { axisAlignment: "none" };
+		ctx.rootGroup.userData.rwx = { axisAlignment: 'none' };
 		ctx.currentGroup = ctx.rootGroup;
 		ctx.materialStack.push( ctx.materialManager.currentMaterial );
 
@@ -1808,11 +1842,11 @@ class RWXLoader extends Loader {
 			}
 
 			res = this.textureRegex.exec( line );
-			if ( res != null ) {
+			if ( this.enableTextures && res != null ) {
 
 				const texture = res[ 2 ].toLowerCase();
 
-				if ( texture == "null" ) {
+				if ( texture == 'null' ) {
 
 					ctx.materialManager.currentRWXMaterial.texture = null;
 
@@ -1982,7 +2016,7 @@ class RWXLoader extends Loader {
 
 				ctx.currentBufferVertices.push( tmpVertex.x, tmpVertex.y, tmpVertex.z );
 
-				if ( typeof ( res[ 7 ] ) != "undefined" ) {
+				if ( res[ 7 ] !== undefined ) {
 
 					let moreVprops = [];
 					res[ 7 ].match( this.floatRegex ).forEach( ( x ) => {
@@ -2197,15 +2231,15 @@ class RWXLoader extends Loader {
 
 				const matMode = res[ 4 ].toLowerCase();
 
-				if ( matMode == "none" ) {
+				if ( matMode == 'none' ) {
 
 					ctx.materialManager.currentRWXMaterial.materialmode = MaterialMode.NONE;
 
-				} else if ( matMode == "null" ) {
+				} else if ( matMode == 'null' ) {
 
 					ctx.materialManager.currentRWXMaterial.materialmode = MaterialMode.NULL;
 
-				} else if ( matMode == "double" ) {
+				} else if ( matMode == 'double' ) {
 
 					ctx.materialManager.currentRWXMaterial.materialmode = MaterialMode.DOUBLE;
 
@@ -2220,11 +2254,11 @@ class RWXLoader extends Loader {
 
 				const collision = res[ 2 ].toLowerCase();
 
-				if ( collision == "on" ) {
+				if ( collision == 'on' ) {
 
 					ctx.materialManager.currentRWXMaterial.collision = true;
 
-				} else if ( collision == "off" ) {
+				} else if ( collision == 'off' ) {
 
 					ctx.materialManager.currentRWXMaterial.collision = false;
 
@@ -2239,7 +2273,7 @@ class RWXLoader extends Loader {
 
 				const ls = res[ 2 ].toLowerCase();
 
-				if ( ls == "vertex" ) {
+				if ( ls == 'vertex' ) {
 
 					ctx.materialManager.currentRWXMaterial.lightsampling = LightSampling.VERTEX;
 
@@ -2258,11 +2292,11 @@ class RWXLoader extends Loader {
 
 				const gs = res[ 2 ].toLowerCase();
 
-				if ( gs == "pointcloud" ) {
+				if ( gs == 'pointcloud' ) {
 
 					ctx.materialManager.currentRWXMaterial.geometrysampling = GeometrySampling.POINTCLOUD;
 
-				} else if ( gs == "wireframe" ) {
+				} else if ( gs == 'wireframe' ) {
 
 					ctx.materialManager.currentRWXMaterial.geometrysampling = GeometrySampling.WIREFRAME;
 
