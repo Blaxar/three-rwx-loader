@@ -1404,6 +1404,14 @@ class RWXMaterialManager {
 
 		const materialSignature = this.currentRWXMaterial.getMatSignature();
 
+		// Check if this material doesn't already sit in the current list, if it does: we just return its index
+		if ( this.signatureMap[ materialSignature ] !== undefined ) {
+
+			this.currentMaterialSignature = materialSignature;
+			return this.signatureMap[ materialSignature ];
+
+		}
+
 		// This gets called when the material is actually required by (at least) one face,
 		// meaning we need to save the material in the map if it's not already done
 		if ( this.threeMaterialMap[ materialSignature ] === undefined ) {
@@ -1420,13 +1428,6 @@ class RWXMaterialManager {
 		if ( this.currentMaterialSignature != materialSignature ) {
 
 			this.currentMaterialSignature = materialSignature;
-
-			// Check if this material doesn't already sit in the current list, if it does: we just return its index
-			if ( this.signatureMap[ materialSignature ] !== undefined ) {
-
-				return this.signatureMap[ materialSignature ];
-
-			}
 
 			// We're onto a new material given the current list, we need to add it to the list and increment the ID
 			if ( this.currentMaterialID === null ) {
