@@ -318,8 +318,8 @@ test( 'Prop loading: single mesh', async () => {
 
 	expect( rwx ).toBeInstanceOf( Mesh );
 	expect( rwx.material ).toHaveLength( 7 );
-	expect( rwx.geometry.getAttribute( 'position' ).count ).toBe( 6 * 4 ); // 6 faces, 4 vertices each
-	expect( rwx.geometry.getAttribute( 'position' ).array ).toHaveLength( 6 * 4 * 3 ); // (X, Y, Z) for each vertex
+	expect( rwx.geometry.getAttribute( 'position' ).count ).toBe( 6 * 4 + 4 ); // 6 faces, 4 vertices each, plus 4 wasted polygon vertices
+	expect( rwx.geometry.getAttribute( 'position' ).array ).toHaveLength( (6 * 4 + 4) * 3 ); // (X, Y, Z) for each vertex
 	expect( rwx.geometry.getIndex().count ).toBe( 6 * 2 * 3 ); // 2 triangles per face, 3 vertex indices to make a triangle
 	expect( rwx.geometry.getIndex().array ).toHaveLength( 6 * 2 * 3 ); // Same here
 	expect( rwx.material[4].userData.rwx.material.tag ).toBe( 100 );
@@ -385,12 +385,12 @@ test( 'Prop loading: single mesh', async () => {
 
 	}
 
-	expect( nb_x_negative ).toBe( 12 );
-	expect( nb_x_positive ).toBe( 12 );
-	expect( nb_y_negative ).toBe( 12 );
+	expect( nb_x_negative ).toBe( 12 + 2 ); // /!\ 2 wasted polygon vertices
+	expect( nb_x_positive ).toBe( 12 + 2 ); // /!\ 2 wasted polygon vertices
+	expect( nb_y_negative ).toBe( 12 + 4 ); // /!\ 4 wasted polygon vertices
 	expect( nb_y_positive ).toBe( 12 );
-	expect( nb_z_negative ).toBe( 12 );
-	expect( nb_z_positive ).toBe( 12 );
+	expect( nb_z_negative ).toBe( 12 + 2 ); // /!\ 2 wasted polygon vertices
+	expect( nb_z_positive ).toBe( 12 + 2 ); // /!\ 2 wasted polygon vertices
 
 } );
 
@@ -450,7 +450,7 @@ test( 'Prop loading: clump group', async () => {
 	expect( nbGroups ).toBe( 10 ); // There are 6 declared clumps and 4 protoinstance statements
 	expect( nbMaxChildrenInGroup ).toBe( 5 ); // 4 clumps and 1 protoinstance
 	expect( nbMaterials ).toBe( 7 );
-	expect( nbVertexCoords ).toBe( 6 * 4 * 3 ); // 6 faces, 4 vertices each, 3 coordinates each
+	expect( nbVertexCoords ).toBe( (6 * 4 + 4) * 3 ); // 6 faces, 4 vertices each (plus 4 wasted polygon vertices), 3 coordinates each
 	expect( nbFaceIndices ).toBe( 6 * 2 * 3 ); // 2 triangles per face, 3 vertex indices to make a triangle
 	expect( foundClumpTags ).toHaveLength( 1 );
 	expect( foundClumpTags[0] ).toBe( 3 );

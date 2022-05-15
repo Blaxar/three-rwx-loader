@@ -176,7 +176,7 @@ function triangulateFacesWithShapes( vertices, uvs, loop ) {
 
 	newVertices.push( ...bufferPosition.array );
 
-	return faces;
+	return [ newVertices, newUvs, faces ];
 
 }
 
@@ -536,7 +536,11 @@ function addPolygon( ctx, indices ) {
 
 	}
 
-	const newFaces = triangulateFacesWithShapes( ctx.currentBufferVertices, ctx.currentBufferUVs, indices );
+	const [ newVertices, newUVs, newFaces ] =
+		triangulateFacesWithShapes( ctx.currentBufferVertices, ctx.currentBufferUVs, indices );
+
+	ctx.currentBufferVertices.push( ...newVertices );
+	ctx.currentBufferUVs.push( ...newUVs );
 
 	for ( let lf = 0; lf < newFaces.length; lf += 3 ) {
 
@@ -960,7 +964,7 @@ function commitMaterialTag( ctx, tag ) {
 	// to see how said mesh is finally defined
 	if ( ! ctx.taggedMaterials[ tag.toString() ].includes( ctx.materialManager.getCurrentMaterialID() ) ) {
 
-		//ctx.taggedMaterials[ tag.toString() ].push( ctx.materialManager.getCurrentMaterialID() );
+		ctx.taggedMaterials[ tag.toString() ].push( ctx.materialManager.getCurrentMaterialID() );
 
 	}
 
