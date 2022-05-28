@@ -1,6 +1,6 @@
 {
   "name": "three-rwx-loader",
-  "version": "0.6.3",
+  "version": "0.6.4",
   "description": "three.js RWX (AW) loader",
   "type": "module",
   "main": "src/RWXLoader.js",
@@ -19,6 +19,7 @@
     "terser": "^5.14.1"
   },
   "dependencies": {
+    "poly2tri": "^1.5.0",
     "three": ">0.131.2"
   },
   "peerDependencies": {

@@ -16,8 +16,6 @@ import {
 	BufferGeometry,
 	Quaternion,
 	Plane,
-	Shape,
-	ShapeBufferGeometry,
 	TextureLoader,
 	RepeatWrapping,
 	LinearEncoding,
@@ -31,6 +29,10 @@ import {
 	LineBasicMaterial,
 	SphereGeometry
 } from 'three';
+
+import { Earcut } from 'three/src/extras/Earcut.js';
+
+import { SweepContext } from 'poly2tri';
 
 const LightSampling = {
 	FACET: 1,
@@ -62,7 +64,8 @@ const ratioHintDelta = 0.3;
 const sqrdRatioHintDelta = ratioHintDelta * ratioHintDelta;
 const glossRatio = 0.1;
 
-function triangulateFacesWithShapes( vertices, uvs, loop ) {
+// Perform polygon triangulation by projecting vertices on a 2D plane first
+function triangulateFaces( vertices, uvs, loop, objectName, forceEarcut = false ) {
 
 	// Mostly crediting @neeh for their answer: https://stackoverflow.com/a/42402681
 	const _ctr = new Vector3();
@@ -78,12 +81,7 @@ function triangulateFacesWithShapes( vertices, uvs, loop ) {
 
 	let _tmp = new Vector3();
 
-	let newVertices = [];
-	let newUvs = [];
-	let faces = [];
-
-	let offset = vertices.length / 3;
-	let vertexMap = {};
+	const vertexIdMap = [];
 
 	// Compute centroid
 	_ctr.setScalar( 0.0 );
@@ -92,7 +90,7 @@ function triangulateFacesWithShapes( vertices, uvs, loop ) {
 	for ( let i = 0; i < l; i ++ ) {
 
 		_ctr.add( new Vector3( vertices[ loop[ i ] * 3 ], vertices[ loop[ i ] * 3 + 1 ], vertices[ loop[ i ] * 3 + 2 ] ) );
-		vertexMap[ i ] = loop[ i ];
+		vertexIdMap.push( loop[ i ] );
 
 	}
 
@@ -132,51 +130,52 @@ function triangulateFacesWithShapes( vertices, uvs, loop ) {
 	_basis.setPosition( _ctr );
 
 	// Project the 3D vertices on the 2D plane
-	let projVertices = [];
+	let poly2triData = [];
+	let earcutData = [];
+
 	for ( let i = 0; i < l; i ++ ) {
 
 		const currentVertex = new Vector3( vertices[ loop[ i ] * 3 ], vertices[ loop[ i ] * 3 + 1 ], vertices[ loop[ i ] * 3 + 2 ] );
 		_tmp.subVectors( currentVertex, _ctr );
-		projVertices.push( new Vector2( _tmp.dot( _x ), _tmp.dot( _y ) ) );
+
+		if ( ! forceEarcut ) poly2triData.push( { x: _tmp.dot( _x ), y: _tmp.dot( _y ), id: vertexIdMap[ i ] } );
+
+		earcutData.push( _tmp.dot( _x ), _tmp.dot( _y ) );
 
 	}
 
-	// Create the geometry (Three.js triangulation with ShapeGeometry)
-	let shape = new Shape( projVertices );
-	let geometry = new ShapeBufferGeometry( shape );
+	let faces = [];
 
-	geometry.applyMatrix4( _basis );
+	if ( ! forceEarcut ) {
 
-	let bufferPosition = geometry.getAttribute( 'position' );
-	const shapeIndices = geometry.getIndex().array;
+		try {
 
-	/*
-	* Replace the positions for each vertex in the newly computed (flat and planar) polygon with the ones from the original
-	* set of vertices it was fed with, thus "sealing" the geometry perfectly despite the vertices being duplicated.
-	*/
-	for ( let i = 0, lVertices = bufferPosition.count; i < lVertices; i ++ ) {
+			// By default: try to use poly2tri (Delaunay triangulation), as it lays better result than Earcut in our case when it succeeds
+			const swctx = new SweepContext( poly2triData );
+			swctx.triangulate();
+			const triangles = swctx.getTriangles();
 
-		bufferPosition.setXYZ(
-			i,
-			vertices[ vertexMap[ i ] * 3 ],
-			vertices[ vertexMap[ i ] * 3 + 1 ],
-			vertices[ vertexMap[ i ] * 3 + 2 ]
-		);
+			for ( const tri of triangles ) {
 
-		newUvs.push( uvs[ vertexMap[ i ] * 2 ], uvs[ vertexMap[ i ] * 2 + 1 ] );
+				faces.push( tri.getPoint( 0 ).id, tri.getPoint( 1 ).id, tri.getPoint( 2 ).id );
 
-	}
+			}
 
-	// Use the vertex indices from each newly computed 2D face to extend our current set
-	for ( let i = 0, lFaces = shapeIndices.length; i < lFaces; i ++ ) {
+			return faces;
 
-		faces.push( shapeIndices[ i ] + offset );
+		} catch ( e ) {
+
+			// Can't use poly2tri in this case... fallback to Earcut
+			console.warn( 'Could not use poly2tri here for ' + objectName + ' (falling back to Earcut): ' + e );
+
+		}
 
 	}
 
-	newVertices.push( ...bufferPosition.array );
+	// Return faces correctly mapping original vertex IDs
+	faces = Earcut.triangulate( earcutData, null, 2 ).map( id => vertexIdMap[ id ] );
 
-	return [ newVertices, newUvs, faces ];
+	return faces;
 
 }
 
@@ -536,11 +535,8 @@ function addPolygon( ctx, indices ) {
 
 	}
 
-	const [ newVertices, newUVs, newFaces ] =
-		triangulateFacesWithShapes( ctx.currentBufferVertices, ctx.currentBufferUVs, indices );
-
-	ctx.currentBufferVertices.push( ...newVertices );
-	ctx.currentBufferUVs.push( ...newUVs );
+	const newFaces =
+		triangulateFaces( ctx.currentBufferVertices, ctx.currentBufferUVs, indices, ctx.objectName, ctx.forceEarcut );
 
 	for ( let lf = 0; lf < newFaces.length; lf += 3 ) {
 
@@ -1560,6 +1556,7 @@ class RWXLoader extends Loader {
 		this.rwxMaterialManager = null;
 		this.textureEncoding = sRGBEncoding;
 		this.enableTextures = true;
+		this.forceEarcut = false;
 
 	}
 
@@ -1648,6 +1645,16 @@ class RWXLoader extends Loader {
 
 	}
 
+	// Always force Earcut to be used when doing polygon triangulation (instead of poly2tri/Delaunay) for faster (but uglier) results,
+	// 'false' by default
+	setForceEarcut( forceEarcut ) {
+
+		this.forceEarcut = forceEarcut;
+
+		return this;
+
+	}
+
 	load( rwxFile, onLoad, onProgress, onError ) {
 
 		let scope = this;
@@ -1661,7 +1668,7 @@ class RWXLoader extends Loader {
 
 			try {
 
-				scope.parse( text, resourcePath, function ( loadedObject ) {
+				scope.parse( rwxFile, text, resourcePath, function ( loadedObject ) {
 
 					onLoad( loadedObject );
 
@@ -1687,7 +1694,7 @@ class RWXLoader extends Loader {
 
 	}
 
-	parse( str, textureFolderPath, onParse ) {
+	parse( name, str, textureFolderPath, onParse ) {
 
 		// Parsing RWX file content
 
@@ -1721,6 +1728,9 @@ class RWXLoader extends Loader {
 			taggedMaterials: {},
 			quadRatioHint: null,
 			triangleRatioHint: null,
+
+			forceEarcut: this.forceEarcut,
+			objectName: this.path + '/' + name
 
 		};
 

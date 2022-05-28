@@ -88,6 +88,10 @@ Set this to `true` to get a single `Mesh` holding everything.
 
   - Enable textures (and masks) to be loaded, `true` by default.
 
+- `setForceEarcut( forceEarcut: boolean ): this`
+
+  - Always force Earcut to be used when doing polygon triangulation (instead of poly2tri/Delaunay) for faster (but uglier) results, 'false' by default
+
 ## Testing
 
 ```bash
