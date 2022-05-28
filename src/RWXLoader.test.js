@@ -2,7 +2,7 @@
  * @author Julien 'Blaxar' Bardagi <blaxar.waldarax@gmail.com>
  */
 
-import { LinearEncoding, sRGBEncoding, TextureLoader } from 'three';
+import { LinearEncoding, sRGBEncoding, TextureLoader, Mesh, Group, Box3, Raycaster, Vector3 } from 'three';
 import RWXLoader, { RWXMaterial, RWXMaterialManager, LightSampling, GeometrySampling, TextureMode, MaterialMode } from './RWXLoader.js';
 import JSZip from 'jszip';
 import JSZipUtils from 'jszip-utils';
@@ -10,8 +10,7 @@ import {createServer} from 'http';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { Mesh, Group, Box3 } from 'three';
-import * as assert from 'assert'
+import * as assert from 'assert';
 
 const port = 8085;
 const epsilon = 0.00001;
@@ -163,6 +162,16 @@ describe( 'RWXLoader', () => {
 
 	} );
 
+	it( 'setForceEarcut', () => {
+
+		let loader = new RWXLoader();
+
+		assert.equal( loader.forceEarcut, false );
+		assert.strictEqual( loader.setForceEarcut( true ), loader );
+		assert.equal( loader.forceEarcut, true );
+
+	} );
+
 	it( 'RWXMaterial', () => {
 
 		let rwxMat = new RWXMaterial();
@@ -288,8 +297,8 @@ describe( 'RWXLoader', () => {
 
 		assert.ok( rwx instanceof Mesh );
 		assert.equal( rwx.material.length, 7 );
-		assert.equal( rwx.geometry.getAttribute( 'position' ).count, 6 * 4 + 4 ); // 6 faces, 4 vertices each, plus 4 wasted polygon vertices
-		assert.equal( rwx.geometry.getAttribute( 'position' ).array.length, (6 * 4 + 4) * 3 ); // (X, Y, Z) for each vertex
+		assert.equal( rwx.geometry.getAttribute( 'position' ).count, 6 * 4 ); // 6 faces, 4 vertices each, plus 4 wasted polygon vertices
+		assert.equal( rwx.geometry.getAttribute( 'position' ).array.length, 6 * 4 * 3 ); // (X, Y, Z) for each vertex
 		assert.equal( rwx.geometry.getIndex().count, 6 * 2 * 3 ); // 2 triangles per face, 3 vertex indices to make a triangle
 		assert.equal( rwx.geometry.getIndex().array.length, 6 * 2 * 3 ); // Same here
 		assert.equal( rwx.material[4].userData.rwx.material.tag, 100 );
@@ -355,12 +364,12 @@ describe( 'RWXLoader', () => {
 
 		}
 
-		assert.equal( nb_x_negative, 12 + 2 ); // /!\ 2 wasted polygon vertices
-		assert.equal( nb_x_positive, 12 + 2 ); // /!\ 2 wasted polygon vertices
-		assert.equal( nb_y_negative, 12 + 4 ); // /!\ 4 wasted polygon vertices
+		assert.equal( nb_x_negative, 12 );
+		assert.equal( nb_x_positive, 12 );
+		assert.equal( nb_y_negative, 12 );
 		assert.equal( nb_y_positive, 12 );
-		assert.equal( nb_z_negative, 12 + 2 ); // /!\ 2 wasted polygon vertices
-		assert.equal( nb_z_positive, 12 + 2 ); // /!\ 2 wasted polygon vertices
+		assert.equal( nb_z_negative, 12 );
+		assert.equal( nb_z_positive, 12 );
 
 	} );
 
@@ -377,7 +386,31 @@ describe( 'RWXLoader', () => {
 		const foundClumpTags = [];
 		const foundMaterialTags = [];
 
+    // Ready all the casters
+		const xCasterLeftFront = new Raycaster( new Vector3( -5, 0, -0.5 ), new Vector3( 1, 0, 0 ), 0, 5 );
+		const xCasterLeftBack = new Raycaster( new Vector3( 5, 0, -0.5 ), new Vector3( -1, 0, 0 ), 0, 5 );
+		const xCasterRightFront = new Raycaster( new Vector3( -5, 0, 0.5 ), new Vector3( 1, 0, 0 ), 0, 5 );
+		const xCasterRightBack = new Raycaster( new Vector3( 5, 0, 0.5 ), new Vector3( -1, 0, 0 ), 0, 5 );
+		const yCasterLeftFront = new Raycaster( new Vector3( 0, -5, -0.5 ), new Vector3( 0, 1, 0 ), 0, 5 );
+		const yCasterLeftBack = new Raycaster( new Vector3( 0, 5, -0.5 ), new Vector3( 0, -1, 0 ), 0, 5 );
+		const yCasterRightFront = new Raycaster( new Vector3( 0, -5, 0.5 ), new Vector3( 0, 1, 0 ), 0, 5 );
+		const yCasterRightBack = new Raycaster( new Vector3( 0, 5, 0.5 ), new Vector3( 0, -1, 0 ), 0, 5 );
+		const zCasterLeftFront = new Raycaster( new Vector3( -0.5, 0, -5 ), new Vector3( 0, 0, 1 ), 0, 5 );
+		const zCasterLeftBack = new Raycaster( new Vector3( -0.5, 0, 5 ), new Vector3( 0, 0, -1 ), 0, 5 );
+		const zCasterRightFront = new Raycaster( new Vector3( 0.5, 0, -5 ), new Vector3( 0, 0, 1 ), 0, 5 );
+		const zCasterRightBack = new Raycaster( new Vector3( 0.5, 0, 5 ), new Vector3( 0, 0, -1 ), 0, 5 );
+
+    let xCasterLeftCount = 0;
+		let xCasterRightCount = 0;
+		let yCasterLeftCount = 0;
+		let yCasterRightCount = 0;
+		let zCasterLeftCount = 0;
+		let zCasterRightCount = 0;
+
 		assert.ok( rwx instanceof Group );
+
+		const boundingBox = new Box3();
+		boundingBox.setFromObject( rwx );
 
 		probeTestCube( rwx, ( g ) => {
 
@@ -404,6 +437,13 @@ describe( 'RWXLoader', () => {
 			nbVertexCoords += positions.length;
 			nbFaceIndices += m.geometry.getIndex().array.length;
 
+			xCasterLeftCount += xCasterLeftFront.intersectObjects( [ m ], false ).length + xCasterLeftBack.intersectObjects( [ m ], false ).length;
+			xCasterRightCount += xCasterRightFront.intersectObjects( [ m ], false ).length + xCasterRightBack.intersectObjects( [ m ], false ).length;
+			yCasterLeftCount += yCasterLeftFront.intersectObjects( [ m ], false ).length + yCasterLeftBack.intersectObjects( [ m ], false ).length;
+			yCasterRightCount += yCasterRightFront.intersectObjects( [ m ], false ).length + yCasterRightBack.intersectObjects( [ m ], false ).length;
+			zCasterLeftCount += zCasterLeftFront.intersectObjects( [ m ], false ).length + zCasterLeftBack.intersectObjects( [ m ], false ).length;
+			zCasterRightCount += zCasterRightFront.intersectObjects( [ m ], false ).length + zCasterRightBack.intersectObjects( [ m ], false ).length;
+
 			for ( const material of m.material ) {
 
 				if ( material.userData.rwx?.material?.tag ) {
@@ -420,15 +460,12 @@ describe( 'RWXLoader', () => {
 		assert.equal( nbGroups, 10 ); // There are 6 declared clumps and 4 protoinstance statements
 		assert.equal( nbMaxChildrenInGroup, 5 ); // 4 clumps and 1 protoinstance
 		assert.equal( nbMaterials, 7 );
-		assert.equal( nbVertexCoords, (6 * 4 + 4) * 3 ); // 6 faces, 4 vertices each (plus 4 wasted polygon vertices), 3 coordinates each
+		assert.equal( nbVertexCoords, 6 * 4 * 3 ); // 6 faces, 4 vertices each, 3 coordinates each
 		assert.equal( nbFaceIndices, 6 * 2 * 3 ); // 2 triangles per face, 3 vertex indices to make a triangle
 		assert.equal( foundClumpTags.length, 1 );
 		assert.equal( foundClumpTags[0], 3 );
 		assert.equal( foundMaterialTags.length, 1 );
 		assert.equal( foundMaterialTags[0], 100 );
-
-		const boundingBox = new Box3();
-		boundingBox.setFromObject( rwx );
 
 		assert.ok( isCloseTo( boundingBox.min.x, -1, epsilon ) );
 		assert.ok( isCloseTo( boundingBox.min.y, -1, epsilon ) );
@@ -437,6 +474,13 @@ describe( 'RWXLoader', () => {
 		assert.ok( isCloseTo( boundingBox.max.x, 1, epsilon ) );
 		assert.ok( isCloseTo( boundingBox.max.y, 1, epsilon ) );
 		assert.ok( isCloseTo( boundingBox.max.z, 1, epsilon ) );
+
+		assert.equal( xCasterLeftCount, 2 );
+		assert.equal( xCasterRightCount, 2 );
+		assert.equal( yCasterLeftCount, 2 );
+		assert.equal( yCasterRightCount, 2 );
+		assert.equal( zCasterLeftCount, 2 );
+		assert.equal( zCasterRightCount, 2 );
 
 	} );
 
