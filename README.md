@@ -61,20 +61,20 @@ However, it also brings its specific set of methods as described below:
 
 - `setWaitFullLoad( waitFullLoad: boolean ): this`
 
-  - Wether or not to wait for full loading completion before returning the objet, `false` by default (meaning textures are loaded asynchronously).
+  - Whether or not to wait for full loading completion before returning the objet, `false` by default (meaning textures are loaded asynchronously).
 
   - Set this to `true` for the loader to only return the object once it's fully loaded.
 
 - `setFlatten( flatten: boolean ): this`
 
-  - Wether or not to flatten the objet, `false` by default (the object will consist of nested `Group`s).
+  - Whether or not to flatten the objet, `false` by default (the object will consist of nested `Group`s).
 Set this to `true` to get a single `Mesh` holding everything.
 
   - In both cases: the object will inherit from `Object3D` (which is a common parent of both `Mesh` and `Group`).
 
 - `setUseBasicMaterial( useBasicMaterial: boolean ): this`
 
-  - Wether or not to use `MeshBasicMaterial` instead of `MeshPhongMaterial`, `false` by default.
+  - Whether or not to use `MeshBasicMaterial` instead of `MeshPhongMaterial`, `false` by default.
 
 - `setRWXMaterialManager( rwxMgr: RWXMaterialManager ): this`
 

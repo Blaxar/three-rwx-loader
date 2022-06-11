@@ -1591,7 +1591,7 @@ class RWXLoader extends Loader {
 
 	}
 
-	// Wether or not to wait for full loading before returning the objet, textures are loaded asynchronously by default,
+	// Whether or not to wait for full loading before returning the objet, textures are loaded asynchronously by default,
 	// set this to 'true' for the loader to only return the object once it's fully loaded
 	setWaitFullLoad( waitFullLoad ) {
 
@@ -1601,7 +1601,7 @@ class RWXLoader extends Loader {
 
 	}
 
-	// Wether or not to flatten the objet, the object will consist of nested groups by default,
+	// Whether or not to flatten the objet, the object will consist of nested groups by default,
 	// set this to 'true' to get a single mesh holding everything
 	setFlatten( flatten ) {
 
@@ -1611,7 +1611,7 @@ class RWXLoader extends Loader {
 
 	}
 
-	// Wether or not to use MeshBasicMaterial instead of MeshPhongMaterial
+	// Whether or not to use MeshBasicMaterial instead of MeshPhongMaterial
 	setUseBasicMaterial( useBasicMaterial ) {
 
 		this.useBasicMaterial = useBasicMaterial;
