@@ -460,7 +460,12 @@ function makeMeshToCurrentGroup( ctx ) {
 function commitBufferGeometryGroup( ctx ) {
 
 	// Make new material group out of existing data
-	ctx.currentBufferGeometry.addGroup( ctx.currentBufferGroupFirstFaceID, ctx.currentBufferFaceCount * 3, ctx.previousMaterialID );
+	if ( ctx.currentBufferFaceCount ) {
+
+		ctx.currentBufferGeometry.addGroup( ctx.currentBufferGroupFirstFaceID, ctx.currentBufferFaceCount * 3, ctx.previousMaterialID );
+
+	}
+
 	ctx.materialManager.commitMaterials();
 
 	// Set everything ready for the next group to start
@@ -529,6 +534,10 @@ function addQuad( ctx, a, b, c, d ) {
 
 function addPolygon( ctx, indices ) {
 
+	// Apparently: polygons should always behave according to the facet light sampling mode (despite being told otherwise).
+	const previousLightSampling = ctx.materialManager.currentRWXMaterial.lightsampling;
+	ctx.materialManager.currentRWXMaterial.lightsampling = LightSampling.FACET;
+
 	if ( ctx.materialManager.getCurrentMaterialID() !== ctx.previousMaterialID ) {
 
 		commitBufferGeometryGroup( ctx );
@@ -549,6 +558,8 @@ function addPolygon( ctx, indices ) {
 		ctx.currentBufferFaces.push( a, b, c );
 
 	}
+
+	ctx.materialManager.currentRWXMaterial.lightsampling = previousLightSampling;
 
 }
 
