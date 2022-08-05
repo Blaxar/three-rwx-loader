@@ -2,8 +2,8 @@
  * @author Julien 'Blaxar' Bardagi <blaxar.waldarax@gmail.com>
  */
 
-import { LinearEncoding, sRGBEncoding, TextureLoader, Mesh, Group, Box3, Raycaster, Vector3 } from 'three';
-import RWXLoader, { RWXMaterial, RWXMaterialManager, LightSampling, GeometrySampling, TextureMode, MaterialMode } from './RWXLoader.js';
+import { LinearEncoding, sRGBEncoding, TextureLoader, Mesh, Group, Box3, Raycaster, Vector3, MeshPhongMaterial } from 'three';
+import RWXLoader, { RWXMaterial, RWXMaterialManager, RWXMaterialTracker, LightSampling, GeometrySampling, TextureMode, MaterialMode } from './RWXLoader.js';
 import JSZip from 'jszip';
 import JSZipUtils from 'jszip-utils';
 import {createServer} from 'http';
@@ -190,8 +190,8 @@ describe( 'RWXLoader', () => {
 		assert.equal( rwxMat.texturemodes.length, 1 );
 		assert.equal( rwxMat.texturemodes[ 0 ], TextureMode.LIT );
 		assert.equal( rwxMat.materialmode, MaterialMode.NULL );
-		assert.equal( rwxMat.texture, null);
-		assert.equal( rwxMat.mask, null);
+		assert.equal( rwxMat.texture, null );
+		assert.equal( rwxMat.mask, null );
 		assert.equal( rwxMat.tag, 0 );
 
 		assert.equal( rwxMat.getMatSignature(), '0.0000.0000.000_0.6900.0000.000_1.000_1_3_1_1___true_0_1.00' );
@@ -246,9 +246,9 @@ describe( 'RWXLoader', () => {
 
 	} );
 
-	it( 'RWXMaterialManager', () => {
+	it( 'RWXMaterialTracker', () => {
 
-		const mgr = new RWXMaterialManager();
+		const mgr = new RWXMaterialTracker( new RWXMaterialManager() );
 
 		assert.equal( mgr.currentRWXMaterial.color.length, 3 );
 		assert.equal( mgr.currentRWXMaterial.color[ 0 ], 0.0 );
@@ -288,6 +288,36 @@ describe( 'RWXLoader', () => {
 		mgr.resetCurrentMaterialList();
 		assert.equal( mgr.currentMaterialList.length, 0 );
 		assert.equal( mgr.getCommitedMaterialList().length, 0 );
+
+	} );
+
+	it( 'RWXMaterialManager', () => {
+
+		const mgr = new RWXMaterialManager();
+		const material = new RWXMaterial();
+
+		const signature = material.getMatSignature();
+
+		assert.equal( Object.keys( mgr.threeMaterialMap ).length, 0 );
+
+		mgr.addRWXMaterial( material );
+		assert.equal( Object.keys( mgr.threeMaterialMap ).length, 1 );
+		assert.equal( mgr.getThreeMaterialPack( signature ).signature, signature );
+
+		// Change the material
+		material.color[ 0 ] = 0.5;
+		mgr.addRWXMaterial( material );
+		assert.equal( Object.keys( mgr.threeMaterialMap ).length, 2 );
+		assert.equal( mgr.getThreeMaterialPack( material.getMatSignature() ).signature, material.getMatSignature() );
+
+		mgr.removeThreeMaterialPack( signature );
+		assert.equal( Object.keys( mgr.threeMaterialMap ).length, 1 );
+		assert.equal( typeof mgr.getThreeMaterialPack( signature ), 'undefined' );
+		assert.equal( mgr.getThreeMaterialPack( material.getMatSignature() ).signature, material.getMatSignature() );
+
+		mgr.reset();
+		assert.equal( Object.keys( mgr.threeMaterialMap ).length, 0 );
+		assert.equal( typeof mgr.getThreeMaterialPack( material.getMatSignature() ), 'undefined' );
 
 	} );
 

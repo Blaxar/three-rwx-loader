@@ -1,6 +1,6 @@
 {
   "name": "three-rwx-loader",
-  "version": "0.6.5",
+  "version": "0.7.0",
   "description": "three.js RWX (AW) loader",
   "type": "module",
   "main": "src/RWXLoader.js",
