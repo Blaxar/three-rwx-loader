@@ -298,25 +298,25 @@ describe( 'RWXLoader', () => {
 
 		const signature = material.getMatSignature();
 
-		assert.equal( Object.keys( mgr.threeMaterialMap ).length, 0 );
+		assert.equal( mgr.threeMaterialMap.size, 0 );
 
 		mgr.addRWXMaterial( material );
-		assert.equal( Object.keys( mgr.threeMaterialMap ).length, 1 );
+		assert.equal( mgr.threeMaterialMap.size, 1 );
 		assert.equal( mgr.getThreeMaterialPack( signature ).signature, signature );
 
 		// Change the material
 		material.color[ 0 ] = 0.5;
 		mgr.addRWXMaterial( material );
-		assert.equal( Object.keys( mgr.threeMaterialMap ).length, 2 );
+		assert.equal( mgr.threeMaterialMap.size, 2 );
 		assert.equal( mgr.getThreeMaterialPack( material.getMatSignature() ).signature, material.getMatSignature() );
 
 		mgr.removeThreeMaterialPack( signature );
-		assert.equal( Object.keys( mgr.threeMaterialMap ).length, 1 );
+		assert.equal( mgr.threeMaterialMap.size, 1 );
 		assert.equal( typeof mgr.getThreeMaterialPack( signature ), 'undefined' );
 		assert.equal( mgr.getThreeMaterialPack( material.getMatSignature() ).signature, material.getMatSignature() );
 
 		mgr.reset();
-		assert.equal( Object.keys( mgr.threeMaterialMap ).length, 0 );
+		assert.equal( mgr.threeMaterialMap.size, 0 );
 		assert.equal( typeof mgr.getThreeMaterialPack( material.getMatSignature() ), 'undefined' );
 
 	} );

@@ -449,7 +449,8 @@ function makeMeshToCurrentGroup( ctx ) {
 
 		resetMaterialTag( ctx );
 		resetMaterialRatio( ctx );
-		ctx.taggedMaterials = {};
+		/* We already use the existing map for mesh metadata, hence why we don't clear it and instancitate a new one instead */
+		ctx.taggedMaterials = new Map();
 
 	}
 
@@ -654,7 +655,7 @@ function addBlock( ctx, w, h, d ) {
 	bufferGeometry.computeVertexNormals();
 
 	let mesh = new Mesh( bufferGeometry, [ material ] );
-	mesh.userData.taggedMaterials = {};
+	mesh.userData.taggedMaterials = new Map();
 	mesh.applyMatrix4( ctx.currentTransform );
 	ctx.currentGroup.add( mesh );
 
@@ -700,7 +701,7 @@ function addCone( ctx, h, r, n ) {
 	bufferGeometry.computeVertexNormals();
 
 	let mesh = new Mesh( bufferGeometry, [ ctx.materialTracker.getCurrentMaterial().threeMat ] );
-	mesh.userData.taggedMaterials = {};
+	mesh.userData.taggedMaterials = new Map();
 	mesh.applyMatrix4( ctx.currentTransform );
 	ctx.currentGroup.add( mesh );
 
@@ -751,7 +752,7 @@ function addCylinder( ctx, h, br, tr, n ) {
 	bufferGeometry.computeVertexNormals();
 
 	let mesh = new Mesh( bufferGeometry, [ ctx.materialTracker.getCurrentMaterial().threeMat ] );
-	mesh.userData.taggedMaterials = {};
+	mesh.userData.taggedMaterials = new Map();
 	mesh.applyMatrix4( ctx.currentTransform );
 	ctx.currentGroup.add( mesh );
 
@@ -794,7 +795,7 @@ function addDisc( ctx, h, r, n ) {
 
 	let mesh = new Mesh( bufferGeometry, [ ctx.materialTracker.getCurrentMaterial().threeMat ] );
 	mesh.applyMatrix4( ctx.currentTransform );
-	mesh.userData.taggedMaterials = {};
+	mesh.userData.taggedMaterials = new Map();
 	ctx.currentGroup.add( mesh );
 
 }
@@ -869,7 +870,7 @@ function addHemisphere( ctx, r, n ) {
 	bufferGeometry.computeVertexNormals();
 
 	let mesh = new Mesh( bufferGeometry, [ ctx.materialTracker.getCurrentMaterial().threeMat ] );
-	mesh.userData.taggedMaterials = {};
+	mesh.userData.taggedMaterials = new Map();
 	mesh.applyMatrix4( ctx.currentTransform );
 	ctx.currentGroup.add( mesh );
 
@@ -891,7 +892,7 @@ function addSphere( ctx, r, n ) {
 	geometry.addGroup( 0, geometry.getIndex().count, 0 );
 
 	let mesh = new Mesh( geometry, [ ctx.materialTracker.getCurrentMaterial().threeMat ] );
-	mesh.userData.taggedMaterials = {};
+	mesh.userData.taggedMaterials = new Map();
 	mesh.applyMatrix4( ctx.currentTransform );
 	ctx.currentGroup.add( mesh );
 
@@ -955,11 +956,11 @@ function commitMaterialTag( ctx, tag ) {
 
 	ctx.materialTracker.currentRWXMaterial.tag = tag;
 
-	if ( ctx.taggedMaterials[ tag.toString() ] === undefined ) {
+	if ( ! ctx.taggedMaterials.has( tag.toString() ) ) {
 
 		// If there are no material under that tag yet, we need to initiliaze the entry
 		// with an empty array
-		ctx.taggedMaterials[ tag.toString() ] = [];
+		ctx.taggedMaterials.set( tag.toString(), [] );
 
 	}
 
@@ -967,9 +968,9 @@ function commitMaterialTag( ctx, tag ) {
 	// of the mesh, we don't have the mesh yet but we already know the position from which
 	// the material will be accessible, thanks to the material manager, see makeMeshToCurrentGroup(...)
 	// to see how said mesh is finally defined
-	if ( ! ctx.taggedMaterials[ tag.toString() ].includes( ctx.materialTracker.getCurrentMaterialID() ) ) {
+	if ( ! ctx.taggedMaterials.get( tag.toString() ).includes( ctx.materialTracker.getCurrentMaterialID() ) ) {
 
-		ctx.taggedMaterials[ tag.toString() ].push( ctx.materialTracker.getCurrentMaterialID() );
+		ctx.taggedMaterials.get( tag.toString() ).push( ctx.materialTracker.getCurrentMaterialID() );
 
 	}
 
@@ -1172,19 +1173,19 @@ function mergeGeometryRecursive( group, ctx, transform = group.matrix ) {
 				// Adjust user data for tagged materials, all indices must also be offset
 				const taggedMaterials = child.userData.taggedMaterials;
 
-				if ( taggedMaterials !== undefined ) {
+				if ( taggedMaterials instanceof Map ) {
 
-					for ( const [ tag, ids ] of Object.entries( taggedMaterials ) ) {
+					for ( const [ tag, ids ] of taggedMaterials ) {
 
-						if ( ctx.taggedMaterials[ tag ] === undefined ) {
+						if ( ! ctx.taggedMaterials.has( tag ) ) {
 
-							ctx.taggedMaterials[ tag ] = [];
+							ctx.taggedMaterials.set( tag, [] );
 
 						}
 
 						ids.forEach( ( id ) => {
 
-							ctx.taggedMaterials[ tag ].push( id + ctx.materials.length );
+							ctx.taggedMaterials.get( tag ).push( id + ctx.materials.length );
 
 						} );
 
@@ -1274,7 +1275,7 @@ function flattenGroup( group, filter = () => true ) {
 		uvs: [],
 		indices: [],
 		materials: [],
-		taggedMaterials: {},
+		taggedMaterials: new Map(),
 		meshFilter: filter
 
 	};
@@ -1380,7 +1381,7 @@ class RWXMaterialManager {
 	'.zip', jsZip = null, jsZipUtils = null, useBasicMaterial = false,
 	textureEncoding = sRGBEncoding ) {
 
-		this.threeMaterialMap = {};
+		this.threeMaterialMap = new Map();
 
 		this.folder = folder;
 		this.textureExtension = textureExtension;
@@ -1397,44 +1398,45 @@ class RWXMaterialManager {
 		// If no custom signature is provided: we use the one from the material itself
 		const finalSignature = signature || newRWXMaterial.getMatSignature();
 
-		this.threeMaterialMap[ finalSignature ] = makeThreeMaterial( newRWXMaterial,
+		const threeMaterial = makeThreeMaterial( newRWXMaterial,
 			this.folder, this.textureExtension, this.maskExtension, this.jsZip, this.jsZipUtils,
 			this.useBasicMaterial, this.textureEncoding );
-		this.threeMaterialMap[ finalSignature ].needsUpdate = true;
+		threeMaterial.needsUpdate = true;
+		threeMaterial.signature = finalSignature;
 
-		this.threeMaterialMap[ finalSignature ].signature = finalSignature;
+		this.threeMaterialMap.set( finalSignature, threeMaterial );
 
 	}
 
 	getThreeMaterialPack( signature ) {
 
-		return this.threeMaterialMap[ signature ];
+		return this.threeMaterialMap.get( signature );
 
 	}
 
 	removeThreeMaterialPack( signature ) {
 
-		delete this.threeMaterialMap[ signature ];
+		this.threeMaterialMap.delete( signature );
 
 	}
 
 	reset() {
 
-		this.threeMaterialMap = {};
+		this.threeMaterialMap.clear();
 
 	}
 
 	texturesNextFrame() {
 
-		for ( const pair of Object.entries( this.threeMaterialMap ) ) {
+		for ( const entry of this.threeMaterialMap ) {
 
-			const animation = pair[ 1 ].threeMat.userData.rwx.animation;
+			const animation = entry[ 1 ].threeMat.userData.rwx.animation;
 
 			if ( animation !== undefined ) {
 
 				animation.step = ( animation.step + 1 ) % animation.yTiles;
-				pair[ 1 ].threeMat.map.offset.y = ( 1.0 - animation.yHeight ) - animation.step * animation.yHeight;
-				pair[ 1 ].threeMat.needsUpdate = true;
+				entry[ 1 ].threeMat.map.offset.y = ( 1.0 - animation.yHeight ) - animation.step * animation.yHeight;
+				entry[ 1 ].threeMat.needsUpdate = true;
 
 			}
 
@@ -1454,7 +1456,7 @@ class RWXMaterialTracker {
 		this.currentRWXMaterial = new RWXMaterial();
 		this.currentMaterialID = null;
 		this.currentMaterialList = [];
-		this.signatureMap = {};
+		this.signatureMap = new Map();
 		this.commitedMaterialsAmount = 0;
 		this.currentMaterialSignature = '';
 
@@ -1465,10 +1467,10 @@ class RWXMaterialTracker {
 		const materialSignature = this.currentRWXMaterial.getMatSignature();
 
 		// Check if this material doesn't already sit in the current list, if it does: we just return its index
-		if ( this.signatureMap[ materialSignature ] !== undefined ) {
+		if ( this.signatureMap.has( materialSignature ) ) {
 
 			this.currentMaterialSignature = materialSignature;
-			return this.signatureMap[ materialSignature ];
+			return this.signatureMap.get( materialSignature );
 
 		}
 
@@ -1495,7 +1497,7 @@ class RWXMaterialTracker {
 
 			}
 
-			this.signatureMap[ materialSignature ] = this.currentMaterialID;
+			this.signatureMap.set( materialSignature, this.currentMaterialID );
 			this.currentMaterialList.push( this.manager.getThreeMaterialPack( materialSignature ) );
 
 		}
@@ -1520,7 +1522,7 @@ class RWXMaterialTracker {
 
 		this.currentMaterialID = null;
 		this.currentMaterialList = [];
-		this.signatureMap = {};
+		this.signatureMap.clear();
 		this.currentMaterialSignature = '';
 		this.currentRWXMaterial = currentMat;
 		this.commitedMaterialsAmount = 0;
@@ -1760,14 +1762,14 @@ class RWXLoader extends Loader {
 			previousMaterialID: null,
 
 			rwxClumpStack: [],
-			rwxProtoDict: {},
+			rwxPrototypes: new Map(),
 
 			loadingPromises: [],
 
 			materialTracker: this.rwxMaterialManager !== null ? new RWXMaterialTracker( this.rwxMaterialManager ) :
 				new RWXMaterialTracker( new RWXMaterialManager( textureFolderPath, this.textureExtension, this.maskExtension, this.jsZip, this.jsZipUtils, this.useBasicMaterial, this.textureEncoding ) ),
 
-			taggedMaterials: {},
+			taggedMaterials: new Map(),
 			quadRatioHint: null,
 			triangleRatioHint: null,
 
@@ -1859,13 +1861,14 @@ class RWXLoader extends Loader {
 				transformBeforeProto = ctx.currentTransform;
 				pushCurrentMaterial( ctx );
 
-				ctx.rwxProtoDict[ name ] = new Group();
-				ctx.rwxProtoDict[ name ].userData.rwx = {};
+				const newGroup = new Group();
+				newGroup.userData.rwx = {};
+				ctx.rwxPrototypes.set( name, newGroup );
 				ctx.currentTransform = new Matrix4();
 
 				resetGeometry( ctx );
 
-				ctx.currentGroup = ctx.rwxProtoDict[ name ];
+				ctx.currentGroup = newGroup;
 
 				continue;
 
@@ -1890,7 +1893,7 @@ class RWXLoader extends Loader {
 			if ( res != null ) {
 
 				const name = res[ 2 ];
-				const proto = ctx.rwxProtoDict[ name ].clone();
+				const proto = ctx.rwxPrototypes.get( name ).clone();
 				proto.applyMatrix4( ctx.currentTransform );
 				ctx.currentGroup.add( proto );
 
