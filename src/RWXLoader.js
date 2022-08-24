@@ -1298,6 +1298,25 @@ function flattenGroup( group, filter = () => true ) {
 
 }
 
+function cloneWithTaggedMaterials( object ) {
+
+	const clonedObject = object.clone( false );
+	clonedObject.userData.taggedMaterials = object.userData.taggedMaterials;
+
+	if ( clonedObject instanceof Group ) {
+
+		object.children.forEach( child => {
+
+			clonedObject.add( cloneWithTaggedMaterials( child ) );
+
+		} );
+
+	}
+
+	return clonedObject;
+
+}
+
 class RWXMaterial {
 
 	constructor() {
@@ -1893,9 +1912,12 @@ class RWXLoader extends Loader {
 			if ( res != null ) {
 
 				const name = res[ 2 ];
-				const proto = ctx.rwxPrototypes.get( name ).clone();
-				proto.applyMatrix4( ctx.currentTransform );
-				ctx.currentGroup.add( proto );
+				const proto = ctx.rwxPrototypes.get( name );
+				const protoInstance = cloneWithTaggedMaterials( proto );
+
+				protoInstance.userData.rwx = proto.userData.rwx;
+				protoInstance.applyMatrix4( ctx.currentTransform );
+				ctx.currentGroup.add( protoInstance );
 
 				continue;
 
