@@ -402,7 +402,7 @@ function makeThreeMaterial( rwxMaterial, folder, textureExtension = '.jpg', mask
 
 }
 
-function resetGeometry( ctx ) {
+function clearGeometry( ctx ) {
 
 	if ( ctx.currentBufferFaceCount > 0 ) {
 
@@ -447,8 +447,8 @@ function makeMeshToCurrentGroup( ctx ) {
 		mesh.userData.taggedMaterials = ctx.taggedMaterials;
 		ctx.currentGroup.add( mesh );
 
-		resetMaterialTag( ctx );
-		resetMaterialRatio( ctx );
+		clearMaterialTag( ctx );
+		clearMaterialRatio( ctx );
 		/* We already use the existing map for mesh metadata, hence why we don't clear it and instancitate a new one instead */
 		ctx.taggedMaterials = new Map();
 
@@ -921,14 +921,14 @@ function pushCurrentMaterial( ctx ) {
 
 	ctx.materialStack.push( ctx.materialTracker.currentRWXMaterial );
 	ctx.materialTracker.currentRWXMaterial = ctx.materialTracker.currentRWXMaterial.clone();
-	ctx.materialTracker.resetCurrentMaterialList( ctx.materialTracker.currentRWXMaterial );
+	ctx.materialTracker.clearCurrentMaterialList( ctx.materialTracker.currentRWXMaterial );
 
 }
 
 function popCurrentMaterial( ctx ) {
 
 	ctx.materialTracker.currentRWXMaterial = ctx.materialStack.pop();
-	ctx.materialTracker.resetCurrentMaterialList( ctx.materialTracker.currentRWXMaterial );
+	ctx.materialTracker.clearCurrentMaterialList( ctx.materialTracker.currentRWXMaterial );
 
 }
 
@@ -956,11 +956,11 @@ function commitMaterialTag( ctx, tag ) {
 
 	ctx.materialTracker.currentRWXMaterial.tag = tag;
 
-	if ( ! ctx.taggedMaterials.has( tag.toString() ) ) {
+	if ( ! ctx.taggedMaterials.has( tag ) ) {
 
 		// If there are no material under that tag yet, we need to initiliaze the entry
 		// with an empty array
-		ctx.taggedMaterials.set( tag.toString(), [] );
+		ctx.taggedMaterials.set( tag, [] );
 
 	}
 
@@ -968,15 +968,15 @@ function commitMaterialTag( ctx, tag ) {
 	// of the mesh, we don't have the mesh yet but we already know the position from which
 	// the material will be accessible, thanks to the material manager, see makeMeshToCurrentGroup(...)
 	// to see how said mesh is finally defined
-	if ( ! ctx.taggedMaterials.get( tag.toString() ).includes( ctx.materialTracker.getCurrentMaterialID() ) ) {
+	if ( ! ctx.taggedMaterials.get( tag ).includes( ctx.materialTracker.getCurrentMaterialID() ) ) {
 
-		ctx.taggedMaterials.get( tag.toString() ).push( ctx.materialTracker.getCurrentMaterialID() );
+		ctx.taggedMaterials.get( tag ).push( ctx.materialTracker.getCurrentMaterialID() );
 
 	}
 
 }
 
-function resetMaterialTag( ctx ) {
+function clearMaterialTag( ctx ) {
 
 	ctx.materialTracker.currentRWXMaterial.tag = 0;
 
@@ -1130,7 +1130,7 @@ function setMaterialRatio( ctx, a, b, c, d = null ) {
 
 }
 
-function resetMaterialRatio( ctx ) {
+function clearMaterialRatio( ctx ) {
 
 	ctx.materialTracker.currentRWXMaterial.ratio = 1.0;
 
@@ -1439,7 +1439,7 @@ class RWXMaterialManager {
 
 	}
 
-	reset() {
+	clear() {
 
 		this.threeMaterialMap.clear();
 
@@ -1537,7 +1537,7 @@ class RWXMaterialTracker {
 
 	}
 
-	resetCurrentMaterialList( currentMat = new RWXMaterial() ) {
+	clearCurrentMaterialList( currentMat = new RWXMaterial() ) {
 
 		this.currentMaterialID = null;
 		this.currentMaterialList = [];
@@ -1830,7 +1830,7 @@ class RWXLoader extends Loader {
 			if ( res != null ) {
 
 				makeMeshToCurrentGroup( ctx );
-				resetGeometry( ctx );
+				clearGeometry( ctx );
 
 				pushCurrentGroup( ctx );
 				pushCurrentMaterial( ctx );
@@ -1847,7 +1847,7 @@ class RWXLoader extends Loader {
 				popCurrentMaterial( ctx );
 				popCurrentGroup( ctx );
 
-				resetGeometry( ctx );
+				clearGeometry( ctx );
 
 				continue;
 
@@ -1885,7 +1885,7 @@ class RWXLoader extends Loader {
 				ctx.rwxPrototypes.set( name, newGroup );
 				ctx.currentTransform = new Matrix4();
 
-				resetGeometry( ctx );
+				clearGeometry( ctx );
 
 				ctx.currentGroup = newGroup;
 
@@ -1902,7 +1902,7 @@ class RWXLoader extends Loader {
 				ctx.currentTransform = transformBeforeProto;
 				popCurrentMaterial( ctx );
 
-				resetGeometry( ctx );
+				clearGeometry( ctx );
 
 				continue;
 
@@ -1988,8 +1988,8 @@ class RWXLoader extends Loader {
 
 				if ( tag !== undefined ) {
 
-					resetMaterialTag( ctx );
-					resetMaterialRatio( ctx );
+					clearMaterialTag( ctx );
+					clearMaterialRatio( ctx );
 
 				}
 
@@ -2037,8 +2037,8 @@ class RWXLoader extends Loader {
 
 				if ( tag !== undefined ) {
 
-					resetMaterialTag( ctx );
-					resetMaterialRatio( ctx );
+					clearMaterialTag( ctx );
+					clearMaterialRatio( ctx );
 
 				}
 
@@ -2075,7 +2075,7 @@ class RWXLoader extends Loader {
 
 				if ( tag !== undefined ) {
 
-					resetMaterialTag( ctx );
+					clearMaterialTag( ctx );
 
 				}
 
@@ -2509,7 +2509,7 @@ class RWXLoader extends Loader {
 
 		}
 
-		ctx.materialTracker.resetCurrentMaterialList();
+		ctx.materialTracker.clearCurrentMaterialList();
 
 		// We're done, return the root group to get the whole object, we take the decameter unit into account
 		ctx.rootGroup.applyMatrix4( scale_ten );
