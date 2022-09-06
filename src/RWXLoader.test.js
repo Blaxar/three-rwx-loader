@@ -172,6 +172,16 @@ describe( 'RWXLoader', () => {
 
 	} );
 
+	it( 'setVerboseWarning', () => {
+
+		let loader = new RWXLoader();
+
+		assert.equal( loader.verboseWarning, false );
+		assert.strictEqual( loader.setVerboseWarning( true ), loader );
+		assert.equal( loader.verboseWarning, true );
+
+	} );
+
 	it( 'RWXMaterial', () => {
 
 		let rwxMat = new RWXMaterial();
@@ -285,7 +295,7 @@ describe( 'RWXLoader', () => {
 		mgr.commitMaterials();
 		assert.equal( mgr.getCommitedMaterialList().length, 2 );
 
-		mgr.resetCurrentMaterialList();
+		mgr.clearCurrentMaterialList();
 		assert.equal( mgr.currentMaterialList.length, 0 );
 		assert.equal( mgr.getCommitedMaterialList().length, 0 );
 
@@ -315,7 +325,7 @@ describe( 'RWXLoader', () => {
 		assert.equal( typeof mgr.getThreeMaterialPack( signature ), 'undefined' );
 		assert.equal( mgr.getThreeMaterialPack( material.getMatSignature() ).signature, material.getMatSignature() );
 
-		mgr.reset();
+		mgr.clear();
 		assert.equal( mgr.threeMaterialMap.size, 0 );
 		assert.equal( typeof mgr.getThreeMaterialPack( material.getMatSignature() ), 'undefined' );
 

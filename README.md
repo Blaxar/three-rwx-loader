@@ -92,6 +92,10 @@ Set this to `true` to get a single `Mesh` holding everything.
 
   - Always force Earcut to be used when doing polygon triangulation (instead of poly2tri/Delaunay) for faster (but uglier) results, `false` by default.
 
+- `setVerboseWarning( verboseWarning: boolean ): this`
+
+  - Enable verbose warning logs for various non-critical mishaps, 'false' by default.
+
 ## Testing
 
 ```bash
