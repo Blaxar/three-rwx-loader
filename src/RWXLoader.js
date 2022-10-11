@@ -26,8 +26,7 @@ import {
 	BufferAttribute,
 	EdgesGeometry,
 	LineSegments,
-	LineBasicMaterial,
-	SphereGeometry
+	LineBasicMaterial
 } from 'three';
 
 import { Earcut } from 'three/src/extras/Earcut.js';
@@ -660,16 +659,14 @@ function addBlock( ctx, w, h, d ) {
 
 }
 
-function addCone( ctx, h, r, n ) {
+function addCone( ctx, h, r, nbSides ) {
 
-	if ( n < 3 ) {
+	if ( nbSides < 3 ) {
 
 		// Silently skip if the cone doesn't have enough faces on its base
 		return;
 
 	}
-
-	const nbSides = n;
 
 	let bufferGeometry = new BufferGeometry();
 
@@ -706,16 +703,14 @@ function addCone( ctx, h, r, n ) {
 
 }
 
-function addCylinder( ctx, h, br, tr, n ) {
+function addCylinder( ctx, h, br, tr, nbSides ) {
 
-	if ( n < 3 ) {
+	if ( nbSides < 3 ) {
 
 		// Silently skip if the cylinder doesn't have enough faces on its base
 		return;
 
 	}
-
-	const nbSides = n;
 
 	// Bottom vertex circle
 	let [ positions, uvs ] = makeVertexCircle( 0, br, nbSides, 1.0 );
@@ -757,16 +752,14 @@ function addCylinder( ctx, h, br, tr, n ) {
 
 }
 
-function addDisc( ctx, h, r, n ) {
+function addDisc( ctx, h, r, nbSides ) {
 
-	if ( n < 3 ) {
+	if ( nbSides < 3 ) {
 
 		// Silently skip if the disc doesn't have enough faces on its base
 		return;
 
 	}
-
-	const nbSides = n;
 
 	let bufferGeometry = new BufferGeometry();
 
@@ -821,7 +814,7 @@ function addHemisphere( ctx, r, n ) {
 	let levelData = null;
 	let index = [];
 
-	// Now that we have the base of the emisphere: we build up from there to the top
+	// Now that we have the base of the hemisphere: we build up from there to the top
 	for ( let h = 1; h < nbSegments; h ++ ) {
 
 		currentLevelID = previousLevelID + nbSides;
@@ -879,18 +872,126 @@ function addSphere( ctx, r, n ) {
 
 	if ( n < 2 ) {
 
-		// Silently skip if the hemisphere doesn't have enough density
+		// Silently skip if the sphere doesn't have enough density
 		return;
 
 	}
 
 	const nbSides = n * 4;
-	const nbSegments = n * 2;
+	const nbSegments = n;
+	const deltaRad = Math.PI / ( nbSegments * 2 );
 
-	let geometry = new SphereGeometry( r, nbSides, nbSegments );
-	geometry.addGroup( 0, geometry.getIndex().count, 0 );
+	// Bottom vertex circle
+	let [ positions, uvs ] = makeVertexCircle( 0, r, nbSides, 1.0 );
 
-	let mesh = new Mesh( geometry, [ ctx.materialTracker.getCurrentMaterial().threeMat ] );
+	let previousLevelID = 0;
+	let currentLevelID = 0;
+
+	let levelData = null;
+	let index = [];
+
+	// Now that we have the base of the sphere: we build up from there to the top
+	for ( let h = 1; h < nbSegments; h ++ ) {
+
+		currentLevelID = previousLevelID + nbSides;
+		const nH = Math.sin( deltaRad * h );
+		levelData = makeVertexCircle( nH * r, Math.cos( deltaRad * h ) * r, nbSides, nH );
+
+		positions.push( ...levelData[ 0 ] );
+		uvs.push( ...levelData[ 1 ] );
+
+		// We weave faces across both circles (up and down) to make a cylinder
+		for ( let i = 0; i < nbSides; i ++ ) {
+
+			index.push( currentLevelID + i, previousLevelID + i, previousLevelID + ( ( i + 1 ) % nbSides ) );
+			index.push( currentLevelID + i, previousLevelID + ( ( i + 1 ) % nbSides ), currentLevelID + ( ( i + 1 ) % nbSides ) );
+
+		}
+
+		previousLevelID = currentLevelID;
+
+	}
+
+	// We add the pointy top of the sphere
+	positions.push( 0, r, 0 );
+	uvs.push( 0.5, 0.0 );
+
+	const topID = positions.length / 3 - 1;
+
+	// We weave faces across the circle (starting from the pointy top) to make a cone
+	for ( let i = 0; i < nbSides; i ++ ) {
+
+		index.push( topID, previousLevelID + i, previousLevelID + ( ( i + 1 ) % nbSides ) );
+
+	}
+
+	previousLevelID ++;
+
+	// Now we build up from the base to the bottom, but we need to properly init levelIDs first
+	currentLevelID = previousLevelID + nbSides;
+	const nH = Math.sin( deltaRad );
+	levelData = makeVertexCircle( - nH * r, Math.cos( deltaRad ) * r, nbSides, nH );
+
+	positions.push( ...levelData[ 0 ] );
+	uvs.push( ...levelData[ 1 ] );
+
+	for ( let i = 0; i < nbSides; i ++ ) {
+
+		index.push( currentLevelID + i, ( i + 1 ) % nbSides, i );
+		index.push( currentLevelID + i, currentLevelID + ( ( i + 1 ) % nbSides ), ( i + 1 ) % nbSides );
+
+	}
+
+	previousLevelID = currentLevelID;
+
+	// Now we can iterate as usual for the bottom
+	for ( let h = 2; h < nbSegments; h ++ ) {
+
+		currentLevelID = previousLevelID + nbSides;
+		const nH = Math.sin( deltaRad * h );
+		levelData = makeVertexCircle( - nH * r, Math.cos( deltaRad * h ) * r, nbSides, nH );
+
+		positions.push( ...levelData[ 0 ] );
+		uvs.push( ...levelData[ 1 ] );
+
+		// We weave faces across both circles (up and down) to make a cylinder
+		for ( let i = 0; i < nbSides; i ++ ) {
+
+			index.push( currentLevelID + i, previousLevelID + ( ( i + 1 ) % nbSides ), previousLevelID + i );
+			index.push( currentLevelID + i, currentLevelID + ( ( i + 1 ) % nbSides ), previousLevelID + ( ( i + 1 ) % nbSides ) );
+
+		}
+
+		previousLevelID = currentLevelID;
+
+	}
+
+	// We add the pointy bottom of the sphere
+	positions.push( 0, - r, 0 );
+	uvs.push( 0.5, 0.0 );
+
+	const bottomID = positions.length / 3 - 1;
+
+	// We weave faces across the circle (starting from the pointy bottom) to make a cone
+	for ( let i = 0; i < nbSides; i ++ ) {
+
+		index.push( bottomID, previousLevelID + ( ( i + 1 ) % nbSides ), previousLevelID + i );
+
+	}
+
+	let bufferGeometry = new BufferGeometry();
+	bufferGeometry.setAttribute( 'position', new BufferAttribute( new Float32Array( positions ), 3 ) );
+	bufferGeometry.setAttribute( 'uv', new BufferAttribute( new Float32Array( uvs ), 2 ) );
+	bufferGeometry.setIndex( index );
+
+	// For the sake of having every mesh with the same internal structure,
+	// we create a geometry group for the material
+	bufferGeometry.addGroup( 0, bufferGeometry.getIndex().count, 0 );
+
+	bufferGeometry.uvsNeedUpdate = true;
+	bufferGeometry.computeVertexNormals();
+
+	let mesh = new Mesh( bufferGeometry, [ ctx.materialTracker.getCurrentMaterial().threeMat ] );
 	mesh.userData.taggedMaterials = {};
 	mesh.applyMatrix4( ctx.currentTransform );
 	ctx.currentGroup.add( mesh );
