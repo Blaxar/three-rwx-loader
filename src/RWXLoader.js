@@ -881,17 +881,33 @@ function addSphere( ctx, r, n ) {
 	const nbSegments = n;
 	const deltaRad = Math.PI / ( nbSegments * 2 );
 
-	// Bottom vertex circle
-	let [ positions, uvs ] = makeVertexCircle( 0, r, nbSides, 1.0 );
+	// We add the pointy bottom of the sphere
+	const positions = [ 0, - r, 0 ];
+	const uvs = [ 0.5, 0.0 ];
+
+	// Bottom vertex circle (above pointy bottom)
+	let h = - nbSegments + 1;
+	const nH = Math.sin( deltaRad * h );
+	let levelData = makeVertexCircle( nH * r, Math.cos( deltaRad * h ) * r, nbSides, nH );
+	positions.push( ...levelData[ 0 ] );
+	uvs.push( ...levelData[ 1 ] );
 
 	let previousLevelID = 0;
-	let currentLevelID = 0;
+	let currentLevelID = 1;
 
-	let levelData = null;
-	let index = [];
+	const index = [];
+
+	// We weave faces across the circle (starting from the pointy bottom) to make a cone
+	for ( let i = 0; i < nbSides; i ++ ) {
+
+		index.push( previousLevelID, currentLevelID + ( i + 1 ) % nbSides, currentLevelID + i );
+
+	}
+
+	previousLevelID = currentLevelID;
 
 	// Now that we have the base of the sphere: we build up from there to the top
-	for ( let h = 1; h < nbSegments; h ++ ) {
+	for ( h ++; h < nbSegments; h ++ ) {
 
 		currentLevelID = previousLevelID + nbSides;
 		const nH = Math.sin( deltaRad * h );
@@ -916,66 +932,12 @@ function addSphere( ctx, r, n ) {
 	positions.push( 0, r, 0 );
 	uvs.push( 0.5, 0.0 );
 
-	const topID = positions.length / 3 - 1;
+	currentLevelID += nbSides;
 
 	// We weave faces across the circle (starting from the pointy top) to make a cone
 	for ( let i = 0; i < nbSides; i ++ ) {
 
-		index.push( topID, previousLevelID + i, previousLevelID + ( ( i + 1 ) % nbSides ) );
-
-	}
-
-	previousLevelID ++;
-
-	// Now we build up from the base to the bottom, but we need to properly init levelIDs first
-	currentLevelID = previousLevelID + nbSides;
-	const nH = Math.sin( deltaRad );
-	levelData = makeVertexCircle( - nH * r, Math.cos( deltaRad ) * r, nbSides, nH );
-
-	positions.push( ...levelData[ 0 ] );
-	uvs.push( ...levelData[ 1 ] );
-
-	for ( let i = 0; i < nbSides; i ++ ) {
-
-		index.push( currentLevelID + i, ( i + 1 ) % nbSides, i );
-		index.push( currentLevelID + i, currentLevelID + ( ( i + 1 ) % nbSides ), ( i + 1 ) % nbSides );
-
-	}
-
-	previousLevelID = currentLevelID;
-
-	// Now we can iterate as usual for the bottom
-	for ( let h = 2; h < nbSegments; h ++ ) {
-
-		currentLevelID = previousLevelID + nbSides;
-		const nH = Math.sin( deltaRad * h );
-		levelData = makeVertexCircle( - nH * r, Math.cos( deltaRad * h ) * r, nbSides, nH );
-
-		positions.push( ...levelData[ 0 ] );
-		uvs.push( ...levelData[ 1 ] );
-
-		// We weave faces across both circles (up and down) to make a cylinder
-		for ( let i = 0; i < nbSides; i ++ ) {
-
-			index.push( currentLevelID + i, previousLevelID + ( ( i + 1 ) % nbSides ), previousLevelID + i );
-			index.push( currentLevelID + i, currentLevelID + ( ( i + 1 ) % nbSides ), previousLevelID + ( ( i + 1 ) % nbSides ) );
-
-		}
-
-		previousLevelID = currentLevelID;
-
-	}
-
-	// We add the pointy bottom of the sphere
-	positions.push( 0, - r, 0 );
-	uvs.push( 0.5, 0.0 );
-
-	const bottomID = positions.length / 3 - 1;
-
-	// We weave faces across the circle (starting from the pointy bottom) to make a cone
-	for ( let i = 0; i < nbSides; i ++ ) {
-
-		index.push( bottomID, previousLevelID + ( ( i + 1 ) % nbSides ), previousLevelID + i );
+		index.push( currentLevelID, previousLevelID + i, previousLevelID + ( ( i + 1 ) % nbSides ) );
 
 	}
 
