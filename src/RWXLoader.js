@@ -811,7 +811,6 @@ function addHemisphere( ctx, r, n ) {
 	let previousLevelID = 0;
 	let currentLevelID = 0;
 
-	let levelData = null;
 	let index = [];
 
 	// Now that we have the base of the hemisphere: we build up from there to the top
@@ -819,7 +818,7 @@ function addHemisphere( ctx, r, n ) {
 
 		currentLevelID = previousLevelID + nbSides;
 		const nH = Math.sin( deltaRad * h );
-		levelData = makeVertexCircle( nH * r, Math.cos( deltaRad * h ) * r, nbSides, nH );
+		const levelData = makeVertexCircle( nH * r, Math.cos( deltaRad * h ) * r, nbSides, nH );
 
 		positions.push( ...levelData[ 0 ] );
 		uvs.push( ...levelData[ 1 ] );
@@ -827,8 +826,9 @@ function addHemisphere( ctx, r, n ) {
 		// We weave faces across both circles (up and down) to make a cylinder
 		for ( let i = 0; i < nbSides; i ++ ) {
 
-			index.push( currentLevelID + i, previousLevelID + i, previousLevelID + ( ( i + 1 ) % nbSides ) );
-			index.push( currentLevelID + i, previousLevelID + ( ( i + 1 ) % nbSides ), currentLevelID + ( ( i + 1 ) % nbSides ) );
+			index.push( currentLevelID + i, previousLevelID + i, previousLevelID + ( ( i + 1 ) % nbSides ),
+				currentLevelID + i, previousLevelID + ( ( i + 1 ) % nbSides ),
+				currentLevelID + ( ( i + 1 ) % nbSides ) );
 
 		}
 
@@ -919,8 +919,9 @@ function addSphere( ctx, r, n ) {
 		// We weave faces across both circles (up and down) to make a cylinder
 		for ( let i = 0; i < nbSides; i ++ ) {
 
-			index.push( currentLevelID + i, previousLevelID + i, previousLevelID + ( ( i + 1 ) % nbSides ) );
-			index.push( currentLevelID + i, previousLevelID + ( ( i + 1 ) % nbSides ), currentLevelID + ( ( i + 1 ) % nbSides ) );
+			index.push( currentLevelID + i, previousLevelID + i, previousLevelID + ( ( i + 1 ) % nbSides ),
+				currentLevelID + i, previousLevelID + ( ( i + 1 ) % nbSides ),
+				currentLevelID + ( ( i + 1 ) % nbSides ) );
 
 		}
 
