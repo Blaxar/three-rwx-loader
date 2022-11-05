@@ -18,6 +18,8 @@ import {
 	Plane,
 	TextureLoader,
 	RepeatWrapping,
+	ClampToEdgeWrapping,
+	MirroredRepeatWrapping,
 	LinearEncoding,
 	sRGBEncoding,
 	FrontSide,
@@ -54,6 +56,12 @@ const MaterialMode = {
 	NONE: 0,
 	NULL: 1,
 	DOUBLE: 2
+};
+
+const TextureAddressMode = {
+	WRAP: 0,
+	MIRROR: 1,
+	CLAMP: 2
 };
 
 const signTag = 100;
@@ -176,14 +184,15 @@ function triangulateFaces( vertices, uvs, loop, objectName, forceEarcut = false,
 
 }
 
-function makeMaskPromise( bmpURI, threeMat, loader, textureEncoding = LinearEncoding ) {
+function makeMaskPromise( bmpURI, threeMat, loader, textureEncoding = LinearEncoding,
+	textureWrapping = RepeatWrapping ) {
 
 	return new Promise( ( resolveMask ) => {
 
 		loader.load( bmpURI, ( maskTexture ) => {
 
-			maskTexture.wrapS = RepeatWrapping;
-			maskTexture.wrapT = RepeatWrapping;
+			maskTexture.wrapS = textureWrapping;
+			maskTexture.wrapT = textureWrapping;
 			maskTexture.encoding = textureEncoding;
 			threeMat.alphaMap = maskTexture;
 			threeMat.needsUpdate = true;
@@ -196,7 +205,8 @@ function makeMaskPromise( bmpURI, threeMat, loader, textureEncoding = LinearEnco
 }
 
 function applyTextureToMat( threeMat, folder, textureName, textureExtension = '.jpg', maskName = null,
-	maskExtension = '.zip', jsZip = null, jsZipUtils = null, loadingPromises = [], textureEncoding = sRGBEncoding ) {
+	maskExtension = '.zip', jsZip = null, jsZipUtils = null, loadingPromises = [], textureEncoding = sRGBEncoding,
+	textureWrapping = RepeatWrapping ) {
 
 	let loader = new TextureLoader();
 
@@ -205,8 +215,8 @@ function applyTextureToMat( threeMat, folder, textureName, textureExtension = '.
 		const texturePath = folder + '/' + textureName + textureExtension;
 		loader.load( texturePath, ( texture ) => {
 
-			texture.wrapS = RepeatWrapping;
-			texture.wrapT = RepeatWrapping;
+			texture.wrapS = textureWrapping;
+			texture.wrapT = textureWrapping;
 			texture.encoding = textureEncoding;
 			threeMat.map = texture;
 			threeMat.needsUpdate = true;
@@ -238,9 +248,9 @@ function applyTextureToMat( threeMat, folder, textureName, textureExtension = '.
 			const zipPath = folder + '/' + maskBaseName + maskExtension;
 
 			// We load the mask asynchronously using JSZip and JSZipUtils (if available)
-			loadingPromises.push( new jsZip.external.Promise( function ( resolve, reject ) {
+			loadingPromises.push( new jsZip.external.Promise( ( resolve, reject ) => {
 
-				jsZipUtils.getBinaryContent( zipPath, function ( err, data ) {
+				jsZipUtils.getBinaryContent( zipPath, ( err, data ) => {
 
 					if ( err ) {
 
@@ -254,7 +264,7 @@ function applyTextureToMat( threeMat, folder, textureName, textureExtension = '.
 
 				} );
 
-			} ).then( jsZip.loadAsync ).then( function ( zip ) {
+			} ).then( jsZip.loadAsync ).then( ( zip ) => {
 
 				// Chain with the bmp content promise, we need to be case insensitive
 				for ( const [ key ] of Object.entries( zip.files ) ) {
@@ -267,7 +277,7 @@ function applyTextureToMat( threeMat, folder, textureName, textureExtension = '.
 
 				}
 
-			} ).then( function success( buffer ) {
+			} ).then( ( buffer ) => {
 
 				// Load the bmp image into a data uri string
 				let bmpURI = 'data:image/bmp;base64,';
@@ -285,7 +295,7 @@ function applyTextureToMat( threeMat, folder, textureName, textureExtension = '.
 				bmpURI = bmpURI.concat( btoa( dataStr ) );
 
 				// Make a texture out of the bmp mask, apply it to the material
-				return makeMaskPromise( bmpURI, threeMat, loader );
+				return makeMaskPromise( bmpURI, threeMat, loader, LinearEncoding, textureWrapping );
 
 			}, function error( e ) {
 
@@ -296,7 +306,7 @@ function applyTextureToMat( threeMat, folder, textureName, textureExtension = '.
 		} else if ( maskExtension != '.zip' ) {
 
 			const bmpPath = folder + '/' + maskName + maskExtension;
-			loadingPromises.push( makeMaskPromise( bmpPath, threeMat, loader ) );
+			loadingPromises.push( makeMaskPromise( bmpPath, threeMat, loader, LinearEncoding, textureWrapping ) );
 
 		}
 
@@ -338,6 +348,18 @@ function makeThreeMaterial( rwxMaterial, folder, textureExtension = '.jpg', mask
 	} else {
 
 		materialDict[ 'wireframe' ] = false;
+
+	}
+
+	let textureWrapping = ClampToEdgeWrapping;
+
+	if ( rwxMaterial.textureaddressmode == TextureAddressMode.WRAP ) {
+
+		textureWrapping = RepeatWrapping;
+
+	} else if ( rwxMaterial.textureaddressmode == TextureAddressMode.MIRROR ) {
+
+		textureWrapping = MirroredRepeatWrapping;
 
 	}
 
@@ -390,7 +412,7 @@ function makeThreeMaterial( rwxMaterial, folder, textureExtension = '.jpg', mask
 		threeMat.color.multiplyScalar( brightnessRatio );
 
 		applyTextureToMat( threeMat, folder, rwxMaterial.texture, textureExtension, rwxMaterial.mask,
-			maskExtension, jsZip, jsZipUtils, loadingPromises, textureEncoding );
+			maskExtension, jsZip, jsZipUtils, loadingPromises, textureEncoding, textureWrapping );
 
 	}
 
@@ -1377,6 +1399,7 @@ class RWXMaterial {
 		this.materialmode = MaterialMode.NULL; // Neither NONE nor DOUBLE: we only render one side of the polygon
 		this.texture = null;
 		this.mask = null;
+		this.textureaddressmode = TextureAddressMode.WRAP;
 		this.collision = true;
 		// End of material related properties
 
@@ -1424,6 +1447,7 @@ class RWXMaterial {
 		const materialMode = this.materialmode.toString();
 		const texture = this.texture === null ? '' : this.texture;
 		const mask = this.mask === null ? '' : this.mask;
+		const textureAddressMode = this.textureaddressmode.toString();
 
 		const collision = this.collision.toString();
 
@@ -1431,7 +1455,7 @@ class RWXMaterial {
 		const ratio = this.ratio.toFixed( 2 );
 
 		return `${color}_${surface}_${opacity}_${lightSampling}_${geometrySampling}_${textureMode}_${materialMode}` +
-			`_${texture}_${mask}_${collision}_${tag}_${ratio}`;
+			`_${texture}_${mask}_${textureAddressMode}_${collision}_${tag}_${ratio}`;
 
 	}
 
@@ -1642,6 +1666,7 @@ class RWXLoader extends Loader {
 		this.collisionRegex = /^ *(collision) +(on|off).*$/i;
 		this.lightsamplingRegex = /^ *(lightsampling) +(facet|vertex).*$/i;
 		this.geometrysamplingRegex = /^ *(geometrysampling) +(pointcloud|wireframe|solid).*$/i;
+		this.textureaddressmodeRegex = /^ *(textureaddressmode) +(wrap|mirror|clamp).*$/i;
 		this.axisalignmentRegex = /^ *(axisalignment) +(none|zorientx|zorienty|xyz).*$/i;
 		this.blockRegex = /^ *(block)(( +[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)(e[-+][0-9]+)?){3}).*$/i;
 		this.coneRegex = /^ *(cone)(( +[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)(e[-+][0-9]+)?){2}( +[-+]?[0-9]+)).*$/i;
@@ -2445,6 +2470,29 @@ class RWXLoader extends Loader {
 
 			}
 
+			res = this.textureaddressmodeRegex.exec( line );
+			if ( res != null ) {
+
+				const tam = res[ 2 ].toLowerCase();
+
+				if ( tam == 'wrap' ) {
+
+					ctx.materialTracker.currentRWXMaterial.textureaddressmode = TextureAddressMode.WRAP;
+
+				} else if ( tam == 'mirror' ) {
+
+					ctx.materialTracker.currentRWXMaterial.textureaddressmode = TextureAddressMode.MIRROR;
+
+				} else {
+
+					ctx.materialTracker.currentRWXMaterial.textureaddressmode = TextureAddressMode.CLAMP;
+
+				}
+
+				continue;
+
+			}
+
 			res = this.axisalignmentRegex.exec( line );
 			if ( res != null ) {
 
@@ -2589,4 +2637,4 @@ class RWXLoader extends Loader {
 
 export default RWXLoader;
 export { RWXMaterial, RWXMaterialManager, RWXMaterialTracker, makeThreeMaterial, makeMaskPromise, applyTextureToMat,
-	LightSampling, GeometrySampling, TextureMode, MaterialMode, signTag, pictureTag, flattenGroup };
+	LightSampling, GeometrySampling, TextureMode, MaterialMode, TextureAddressMode, signTag, pictureTag, flattenGroup };
