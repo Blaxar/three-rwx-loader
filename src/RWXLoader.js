@@ -1638,7 +1638,7 @@ class RWXLoader extends Loader {
 
 		this.integerRegex = /([-+]?[0-9]+)/g;
 		this.floatRegex = /([+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)([eE][-+][0-9]+)?)/g;
-		this.nonCommentRegex = /^(.*)#/g;
+		this.nonCommentRegex = /^(.*)#(?!\!)/g;
 		this.clumpbeginRegex = /^ *(clumpbegin).*$/i;
 		this.clumpendRegex = /^ *(clumpend).*$/i;
 		this.transformbeginRegex = /^ *(transformbegin).*$/i;
@@ -1666,7 +1666,7 @@ class RWXLoader extends Loader {
 		this.collisionRegex = /^ *(collision) +(on|off).*$/i;
 		this.lightsamplingRegex = /^ *(lightsampling) +(facet|vertex).*$/i;
 		this.geometrysamplingRegex = /^ *(geometrysampling) +(pointcloud|wireframe|solid).*$/i;
-		this.textureaddressmodeRegex = /^ *(textureaddressmode) +(wrap|mirror|clamp).*$/i;
+		this.textureaddressmodeRegex = /^ *(#\!)? *(textureaddressmode) +(wrap|mirror|clamp).*$/i;
 		this.axisalignmentRegex = /^ *(axisalignment) +(none|zorientx|zorienty|xyz).*$/i;
 		this.blockRegex = /^ *(block)(( +[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)(e[-+][0-9]+)?){3}).*$/i;
 		this.coneRegex = /^ *(cone)(( +[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)(e[-+][0-9]+)?){2}( +[-+]?[0-9]+)).*$/i;
@@ -2473,7 +2473,7 @@ class RWXLoader extends Loader {
 			res = this.textureaddressmodeRegex.exec( line );
 			if ( res != null ) {
 
-				const tam = res[ 2 ].toLowerCase();
+				const tam = res[ 3 ].toLowerCase();
 
 				if ( tam == 'wrap' ) {
 
