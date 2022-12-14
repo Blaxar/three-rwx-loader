@@ -205,7 +205,7 @@ function makeMaskPromise( bmpURI, threeMat, loader, textureEncoding = LinearEnco
 }
 
 function applyTextureToMat( threeMat, folder, textureName, textureExtension = '.jpg', maskName = null,
-	maskExtension = '.zip', jsZip = null, jsZipUtils = null, loadingPromises = [], textureEncoding = sRGBEncoding,
+	maskExtension = '.zip', fflate = null, loadingPromises = [], textureEncoding = sRGBEncoding,
 	textureWrapping = RepeatWrapping ) {
 
 	let loader = new TextureLoader();
@@ -241,65 +241,71 @@ function applyTextureToMat( threeMat, folder, textureName, textureExtension = '.
 		threeMat.alphaTest = 0.2;
 		threeMat.transparent = true;
 
-		if ( maskExtension == '.zip' && jsZip != null && jsZipUtils != null ) {
+		if ( maskExtension == '.zip' && fflate != null ) {
 
 			// We try to extract the bmp mask from the archive
 			const maskBaseName = maskName;
 			const zipPath = folder + '/' + maskBaseName + maskExtension;
 
-			// We load the mask asynchronously using JSZip and JSZipUtils (if available)
-			loadingPromises.push( new jsZip.external.Promise( ( resolve, reject ) => {
+			loadingPromises.push( new Promise( ( resolve, reject ) => {
 
-				jsZipUtils.getBinaryContent( zipPath, ( err, data ) => {
+				const zipLoader = new FileLoader();
+				zipLoader.setResponseType( 'arraybuffer' );
 
-					if ( err ) {
+				// We load the mask asynchronously using fflate (if available)
+				zipLoader.load( zipPath, ( data ) => {
 
-						reject( err );
+		      const zipData = fflate.unzipSync( new Uint8Array( data ) );
+					let filename = null;
 
-					} else {
+					// Find the bmp file within the archive, we need to be case insensitive
+				  for ( const key of Object.keys( zipData ) ) {
 
-						resolve( data );
+					  if ( key.toLowerCase() == ( maskBaseName.toLowerCase() + '.bmp' ) ) {
+
+							// Found the file
+						  filename = key;
+							break;
+
+					  }
+
+				  }
+
+					if ( ! filename ) {
+
+						// No .bmp mask file found within the archive: can't proceed further
+						reject( new Error( `No .bmp file candidate found within '${zipPath}'` ) );
 
 					}
+
+					const buffer = zipData[ filename ];
+
+					// Load the bmp image into a data uri string
+				  let bmpURI = 'data:image/bmp;base64,';
+				  const chunkSize = 4056;
+				  let dataStr = '';
+
+				  // Chunking the buffer to maximize browser compatibility and avoid exceeding some size limit
+				  // during string creation when using 'String.fromCharCode'
+				  for ( let i = 0; i < buffer.length; i += chunkSize ) {
+
+					  dataStr = dataStr.concat( String.fromCharCode.apply( null, new Uint16Array( buffer.slice( i, i + chunkSize ) ) ) );
+
+				  }
+
+					bmpURI = bmpURI.concat( btoa( dataStr ) );
+
+					makeMaskPromise( bmpURI, threeMat, loader, LinearEncoding, textureWrapping ).then( ( mask ) => {
+
+						resolve( mask );
+
+					} );
+
+				}, null, ( err ) => {
+
+					reject( err );
 
 				} );
-
-			} ).then( jsZip.loadAsync ).then( ( zip ) => {
-
-				// Chain with the bmp content promise, we need to be case insensitive
-				for ( const [ key ] of Object.entries( zip.files ) ) {
-
-					if ( key.toLowerCase() == ( maskBaseName.toLowerCase() + '.bmp' ) ) {
-
-						return zip.file( key ).async( 'uint8array' );
-
-					}
-
-				}
-
-			} ).then( ( buffer ) => {
-
-				// Load the bmp image into a data uri string
-				let bmpURI = 'data:image/bmp;base64,';
-				const chunkSize = 4056;
-				let dataStr = '';
-
-				// Chunking the buffer to maximize browser compatibility and avoid exceeding some size limit
-				// during string creation when using 'String.fromCharCode'
-				for ( let i = 0; i < buffer.length; i += chunkSize ) {
-
-					dataStr = dataStr.concat( String.fromCharCode.apply( null, new Uint16Array( buffer.slice( i, i + chunkSize ) ) ) );
-
-				}
-
-				bmpURI = bmpURI.concat( btoa( dataStr ) );
-
-				// Make a texture out of the bmp mask, apply it to the material
-				return makeMaskPromise( bmpURI, threeMat, loader, LinearEncoding, textureWrapping );
-
-			}, function error( e ) {
-
-				throw e;
 
 			} ) );
 
@@ -315,7 +321,7 @@ function applyTextureToMat( threeMat, folder, textureName, textureExtension = '.
 }
 
 function makeThreeMaterial( rwxMaterial, folder, textureExtension = '.jpg', maskExtension = '.zip',
-	jsZip = null, jsZipUtils = null, useBasicMaterial = false, textureEncoding = sRGBEncoding ) {
+	fflate = null, useBasicMaterial = false, textureEncoding = sRGBEncoding ) {
 
 	let materialDict = { name: rwxMaterial.getMatSignature() };
 
@@ -412,7 +418,7 @@ function makeThreeMaterial( rwxMaterial, folder, textureExtension = '.jpg', mask
 		threeMat.color.multiplyScalar( brightnessRatio );
 
 		applyTextureToMat( threeMat, folder, rwxMaterial.texture, textureExtension, rwxMaterial.mask,
-			maskExtension, jsZip, jsZipUtils, loadingPromises, textureEncoding, textureWrapping );
+			maskExtension, fflate, loadingPromises, textureEncoding, textureWrapping );
 
 	}
 
@@ -586,7 +592,7 @@ function makeVertexCircle( h, r, n, v = null ) {
 
 	if ( n < 3 ) {
 
-		throw ( 'Need at least 3 sides to make a vertex circle' );
+		throw new Error( 'Need at least 3 sides to make a vertex circle' );
 
 	}
 
@@ -1465,7 +1471,7 @@ class RWXMaterial {
 class RWXMaterialManager {
 
 	constructor( folder, textureExtension = '.jpg', maskExtension =
-	'.zip', jsZip = null, jsZipUtils = null, useBasicMaterial = false,
+	'.zip', fflate = null, useBasicMaterial = false,
 	textureEncoding = sRGBEncoding ) {
 
 		this.threeMaterialMap = new Map();
@@ -1473,8 +1479,7 @@ class RWXMaterialManager {
 		this.folder = folder;
 		this.textureExtension = textureExtension;
 		this.maskExtension = maskExtension;
-		this.jsZip = jsZip;
-		this.jsZipUtils = jsZipUtils;
+		this.fflate = fflate;
 		this.useBasicMaterial = useBasicMaterial;
 		this.textureEncoding = textureEncoding;
 
@@ -1486,7 +1491,7 @@ class RWXMaterialManager {
 		const finalSignature = signature || newRWXMaterial.getMatSignature();
 
 		const threeMaterial = makeThreeMaterial( newRWXMaterial,
-			this.folder, this.textureExtension, this.maskExtension, this.jsZip, this.jsZipUtils,
+			this.folder, this.textureExtension, this.maskExtension, this.fflate,
 			this.useBasicMaterial, this.textureEncoding );
 		threeMaterial.needsUpdate = true;
 		threeMaterial.signature = finalSignature;
@@ -1676,8 +1681,7 @@ class RWXLoader extends Loader {
 		this.sphereRegex = /^ *(sphere)(( +[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)(e[-+][0-9]+)?)( +[-+]?[0-9]+)).*$/i;
 		this.tagRegex = /^ *(tag)( +[-+]?[0-9]+).*$/i;
 
-		this.jsZip = null;
-		this.jsZipUtils = null;
+		this.fflate = null;
 		this.textureExtension = '.jpg';
 		this.maskExtension = '.zip';
 
@@ -1692,11 +1696,10 @@ class RWXLoader extends Loader {
 
 	}
 
-	// Provide jsZip and jsZipUtils modules to the loader, required for proper texture masks handling
-	setJSZip( jsZip, jsZipUtils ) {
+	// Provide fflate module to the loader, required for proper texture masks handling
+	setFflate( fflate ) {
 
-		this.jsZip = jsZip;
-		this.jsZipUtils = jsZipUtils;
+		this.fflate = fflate;
 
 		return this;
 
@@ -1865,7 +1868,7 @@ class RWXLoader extends Loader {
 			loadingPromises: [],
 
 			materialTracker: this.rwxMaterialManager !== null ? new RWXMaterialTracker( this.rwxMaterialManager ) :
-				new RWXMaterialTracker( new RWXMaterialManager( textureFolderPath, this.textureExtension, this.maskExtension, this.jsZip, this.jsZipUtils, this.useBasicMaterial, this.textureEncoding ) ),
+				new RWXMaterialTracker( new RWXMaterialManager( textureFolderPath, this.textureExtension, this.maskExtension, this.fflate, this.useBasicMaterial, this.textureEncoding ) ),
 
 			taggedMaterials: {},
 			quadRatioHint: null,

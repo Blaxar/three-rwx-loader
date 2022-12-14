@@ -5,9 +5,8 @@
 import { LinearEncoding, sRGBEncoding, TextureLoader, Mesh, Group, Box3, Raycaster, Vector3, MeshPhongMaterial } from 'three';
 import RWXLoader, { RWXMaterial, RWXMaterialManager, RWXMaterialTracker, LightSampling, GeometrySampling,
 	TextureMode, MaterialMode, TextureAddressMode } from './RWXLoader.js';
-import JSZip from 'jszip';
-import JSZipUtils from 'jszip-utils';
-import {createServer} from 'http';
+import * as fflate from 'fflate';
+import { createServer } from 'http';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -70,15 +69,13 @@ const probeTestCube = ( node, groupCb, meshCb ) => {
 
 describe( 'RWXLoader', () => {
 
-	it( 'setJSZip', () => {
+	it( 'setFflate', () => {
 
 		let loader = new RWXLoader();
 
-		assert.equal( loader.jsZip, null );
-		assert.equal( loader.jsZipUtils, null );
-		assert.strictEqual( loader.setJSZip( JSZip, JSZipUtils ), loader );
-		assert.strictEqual( loader.jsZip, JSZip );
-		assert.strictEqual( loader.jsZipUtils, JSZipUtils );
+		assert.equal( loader.fflate, null );
+		assert.strictEqual( loader.setFflate( fflate ), loader );
+		assert.strictEqual( loader.fflate, fflate );
 
 	} );
 

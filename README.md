@@ -27,14 +27,13 @@ $ npm install three-rwx-loader
 ```javascript
 import RWXLoader from 'RWXLoader';
 
-// For optional (but strongly advised) JSZip usage
-import * as JSZip from 'jszip'
-import JSZipUtils from 'jszip-utils'
+// For optional (but strongly advised) fflate usage
+import * as fflate from 'fflate';
 
 let rwxLoader = new RWXLoader();
 
 // Like other three.js loaders: this one supports chained commands
-rwxLoader.setPath('some/path/rwx').setResourcePath('some/path/textures').setJSZip(JSZip, JSZipUtils).setWaitFullLoad(true).setFlatten(true);
+rwxLoader.setPath('some/path/rwx').setResourcePath('some/path/textures').setFflate(fflate).setWaitFullLoad(true).setFlatten(true);
 
 rwxLoader.load('object.rwx', (rwx) => {
       // Do something with 'rwx' there, it is guaranteed to be an Object3D from three.js
@@ -47,9 +46,9 @@ By virtue of inheriting from the *three.js* `Loader` class: this loader comes wi
 
 However, it also brings its specific set of methods as described below:
 
-- `setJSZip( jsZip: JSZip, jsZipUtils: JSZipUtils ): this`
+- `setFflate( fflate: fflate ): this`
 
-  - Provide jsZip and jsZipUtils modules to the loader, required for proper texture masks handling.
+  - Provide fflate module to the loader, required for proper texture masks handling.
 
 - `setTextureExtension( textureExtension: string ): this`
 
