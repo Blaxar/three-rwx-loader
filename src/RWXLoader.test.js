@@ -312,16 +312,19 @@ describe( 'RWXLoader', () => {
 		assert.equal( mgr.threeMaterialMap.size, 0 );
 
 		mgr.addRWXMaterial( material );
+		assert.ok( mgr.hasThreeMaterialPack( signature ) );
 		assert.equal( mgr.threeMaterialMap.size, 1 );
 		assert.equal( mgr.getThreeMaterialPack( signature ).signature, signature );
 
 		// Change the material
 		material.color[ 0 ] = 0.5;
 		mgr.addRWXMaterial( material );
+		assert.ok( mgr.hasThreeMaterialPack( material.getMatSignature() ) );
 		assert.equal( mgr.threeMaterialMap.size, 2 );
 		assert.equal( mgr.getThreeMaterialPack( material.getMatSignature() ).signature, material.getMatSignature() );
 
 		mgr.removeThreeMaterialPack( signature );
+		assert.ok( ! mgr.hasThreeMaterialPack( signature ) );
 		assert.equal( mgr.threeMaterialMap.size, 1 );
 		assert.equal( typeof mgr.getThreeMaterialPack( signature ), 'undefined' );
 		assert.equal( mgr.getThreeMaterialPack( material.getMatSignature() ).signature, material.getMatSignature() );

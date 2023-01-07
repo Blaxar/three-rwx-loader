@@ -422,6 +422,8 @@ function makeThreeMaterial( rwxMaterial, folder, textureExtension = '.jpg', mask
 
 	}
 
+	threeMat.needsUpdate = true;
+
 	return {
 		threeMat: threeMat,
 		loadingPromises: loadingPromises,
@@ -1493,10 +1495,15 @@ class RWXMaterialManager {
 		const threeMaterial = makeThreeMaterial( newRWXMaterial,
 			this.folder, this.textureExtension, this.maskExtension, this.fflate,
 			this.useBasicMaterial, this.textureEncoding );
-		threeMaterial.needsUpdate = true;
 		threeMaterial.signature = finalSignature;
 
 		this.threeMaterialMap.set( finalSignature, threeMaterial );
+
+	}
+
+	hasThreeMaterialPack( signature ) {
+
+		return this.threeMaterialMap.has( signature );
 
 	}
 
@@ -1568,7 +1575,7 @@ class RWXMaterialTracker {
 
 		// This gets called when the material is actually required by (at least) one face,
 		// meaning we need to save the material in the map if it's not already done
-		if ( this.manager.getThreeMaterialPack( materialSignature ) === undefined ) {
+		if ( ! this.manager.hasThreeMaterialPack( materialSignature ) ) {
 
 			this.manager.addRWXMaterial( this.currentRWXMaterial, materialSignature );
 
