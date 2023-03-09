@@ -69,6 +69,8 @@ const pictureTag = 200;
 
 const glossRatio = 0.1;
 
+const hasExtensionRegex = /^.*\.[^\\]+$/i;
+
 // Perform polygon triangulation by projecting vertices on a 2D plane first
 function triangulateFaces( vertices, uvs, loop, objectName, forceEarcut = false, verboseWarning = false ) {
 
@@ -209,10 +211,35 @@ function applyTextureToMat( threeMat, folder, textureName, textureExtension = '.
 	textureWrapping = RepeatWrapping ) {
 
 	let loader = new TextureLoader();
+	let texturePath = null;
+
+	// If a file other than a JPEG is loaded, we want a sharp, transparency-enabled image
+
+	if ( ! textureName.toLowerCase().endsWith( '.jpg' ) ) {
+
+		threeMat.alphaTest = 1;
+		textureExtension = '';
+
+	} else {
+
+		// If texture.jpg is requested, make sure we don't load texture.jpg.jpg
+
+		textureExtension = '';
+
+	}
+
+	// Assume JPG as default texture
+
+	if ( hasExtensionRegex.test( textureName ) === false ) {
+
+		textureExtension = '.jpg';
+
+	}
 
 	loadingPromises.push( new Promise( ( resolveTex ) => {
 
-		const texturePath = folder + '/' + textureName + textureExtension;
+		texturePath = folder + '/' + textureName + textureExtension;
+
 		loader.load( texturePath, ( texture ) => {
 
 			texture.wrapS = textureWrapping;
@@ -238,7 +265,7 @@ function applyTextureToMat( threeMat, folder, textureName, textureExtension = '.
 
 	if ( maskName != null ) {
 
-		threeMat.alphaTest = 0.2;
+		threeMat.alphaTest = textureName.toLowerCase().endsWith( '.jpg' ) || textureExtension.toLowerCase() === '.jpg' ? 0.2 : 1.0;
 		threeMat.transparent = true;
 
 		if ( maskExtension == '.zip' && fflate != null ) {
@@ -1662,7 +1689,8 @@ class RWXLoader extends Loader {
 		this.polygonRegex = /^ *(polygon|polygonext)( +[0-9]+)(( +[0-9]+)+)( +tag +([0-9]+))?.*$/i;
 		this.quadRegex = /^ *(quad|quadext)(( +([0-9]+)){4})( +tag +([0-9]+))?.*$/i;
 		this.triangleRegex = /^ *(triangle|triangleext)(( +([0-9]+)){3})( +tag +([0-9]+))?.*$/i;
-		this.textureRegex = /^ *(texture) +([A-Za-z0-9_\-]+) *(mask *([A-Za-z0-9_\-]+))?.*$/i;
+		//this.textureRegex = /^ *(texture) +([A-Za-z0-9_\-]+) *(mask *([A-Za-z0-9_\-]+))?.*$/i;
+		this.textureRegex = /^ *(texture) +([A-Za-z0-9_\-]+)*(\.[A-Za-z]+)? *(mask *([A-Za-z0-9_\-]+))?.*$/i;
 		this.colorRegex = /^ *(color)(( +[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)(e[-+][0-9]+)?){3}).*$/i;
 		this.opacityRegex = /^ *(opacity)( +[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)(e[-+][0-9]+)?).*$/i;
 		this.identityRegex = /^ *(identity) *$/i;
@@ -2014,21 +2042,30 @@ class RWXLoader extends Loader {
 			res = this.textureRegex.exec( line );
 			if ( this.enableTextures && res != null ) {
 
-				const texture = res[ 2 ].toLowerCase();
+				const textureExtension = res[ 3 ] != null ? res[ 3 ].toLowerCase() : '.jpg';
 
+				const texture = res[ 2 ].toLowerCase();
 				if ( texture == 'null' ) {
 
 					ctx.materialTracker.currentRWXMaterial.texture = null;
 
 				} else {
 
-					ctx.materialTracker.currentRWXMaterial.texture = texture;
+					if ( textureExtension !== '.jpg' ) {
+
+						ctx.materialTracker.currentRWXMaterial.texture = texture + textureExtension;
+
+					} else {
+
+						ctx.materialTracker.currentRWXMaterial.texture = texture;
+
+					}
 
 				}
 
 				if ( res[ 4 ] !== undefined ) {
 
-					ctx.materialTracker.currentRWXMaterial.mask = res[ 4 ];
+					ctx.materialTracker.currentRWXMaterial.mask = res[ 5 ];
 
 				} else {
 
