@@ -69,7 +69,7 @@ const pictureTag = 200;
 
 const glossRatio = 0.1;
 
-const hasExtensionRegex = /^.*\.[^\\]+$/i;
+const extensionRegex = /^.*(\.[^\\]+)$/i;
 
 // Perform polygon triangulation by projecting vertices on a 2D plane first
 function triangulateFaces( vertices, uvs, loop, objectName, forceEarcut = false, verboseWarning = false ) {
@@ -213,26 +213,21 @@ function applyTextureToMat( threeMat, folder, textureName, textureExtension = '.
 	let loader = new TextureLoader();
 	let texturePath = null;
 
-	// If a file other than a JPEG is loaded, we want a sharp, transparency-enabled image
+	const res = extensionRegex.exec( textureName );
 
-	if ( ! textureName.toLowerCase().endsWith( '.jpg' ) ) {
-
-		threeMat.alphaTest = 1;
-		textureExtension = '';
-
-	} else {
+	if ( res ) {
 
 		// If texture.jpg is requested, make sure we don't load texture.jpg.jpg
 
 		textureExtension = '';
 
-	}
+		if ( res[ 1 ] !== '.jpg' ) {
 
-	// Assume JPG as default texture
+			// If a file other than a JPEG is loaded, we want a sharp, transparency-enabled image
 
-	if ( hasExtensionRegex.test( textureName ) === false ) {
+			threeMat.alphaTest = 1;
 
-		textureExtension = '.jpg';
+	  }
 
 	}
 
@@ -1689,7 +1684,6 @@ class RWXLoader extends Loader {
 		this.polygonRegex = /^ *(polygon|polygonext)( +[0-9]+)(( +[0-9]+)+)( +tag +([0-9]+))?.*$/i;
 		this.quadRegex = /^ *(quad|quadext)(( +([0-9]+)){4})( +tag +([0-9]+))?.*$/i;
 		this.triangleRegex = /^ *(triangle|triangleext)(( +([0-9]+)){3})( +tag +([0-9]+))?.*$/i;
-		//this.textureRegex = /^ *(texture) +([A-Za-z0-9_\-]+) *(mask *([A-Za-z0-9_\-]+))?.*$/i;
 		this.textureRegex = /^ *(texture) +([A-Za-z0-9_\-]+)*(\.[A-Za-z]+)? *(mask *([A-Za-z0-9_\-]+))?.*$/i;
 		this.colorRegex = /^ *(color)(( +[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)(e[-+][0-9]+)?){3}).*$/i;
 		this.opacityRegex = /^ *(opacity)( +[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)(e[-+][0-9]+)?).*$/i;
