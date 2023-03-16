@@ -17,6 +17,8 @@ import {
 	Quaternion,
 	Plane,
 	TextureLoader,
+	NearestFilter,
+	LinearMipmapNearestFilter,
 	RepeatWrapping,
 	ClampToEdgeWrapping,
 	MirroredRepeatWrapping,
@@ -68,8 +70,10 @@ const signTag = 100;
 const pictureTag = 200;
 
 const glossRatio = 0.1;
+const defaultAlphaTest = 0.2;
 
 const extensionRegex = /^.*(\.[^\\]+)$/i;
+const isAlphaExtensionRegex = /^\.(tiff|png|webp|gif)$/i;
 
 // Perform polygon triangulation by projecting vertices on a 2D plane first
 function triangulateFaces( vertices, uvs, loop, objectName, forceEarcut = false, verboseWarning = false ) {
@@ -187,7 +191,7 @@ function triangulateFaces( vertices, uvs, loop, objectName, forceEarcut = false,
 }
 
 function makeMaskPromise( bmpURI, threeMat, loader, textureEncoding = LinearEncoding,
-	textureWrapping = RepeatWrapping ) {
+	textureWrapping = RepeatWrapping, textureFiltering = true ) {
 
 	return new Promise( ( resolveMask ) => {
 
@@ -196,8 +200,17 @@ function makeMaskPromise( bmpURI, threeMat, loader, textureEncoding = LinearEnco
 			maskTexture.wrapS = textureWrapping;
 			maskTexture.wrapT = textureWrapping;
 			maskTexture.encoding = textureEncoding;
+
+			if ( ! textureFiltering ) {
+
+				maskTexture.minFilter = LinearMipmapNearestFilter;
+				maskTexture.magFilter = NearestFilter;
+
+			}
+
 			threeMat.alphaMap = maskTexture;
 			threeMat.needsUpdate = true;
+
 			resolveMask( maskTexture );
 
 		} );
@@ -208,7 +221,7 @@ function makeMaskPromise( bmpURI, threeMat, loader, textureEncoding = LinearEnco
 
 function applyTextureToMat( threeMat, folder, textureName, textureExtension = '.jpg', maskName = null,
 	maskExtension = '.zip', fflate = null, loadingPromises = [], textureEncoding = sRGBEncoding,
-	textureWrapping = RepeatWrapping ) {
+	textureWrapping = RepeatWrapping, alphaTest = defaultAlphaTest, textureFiltering = true ) {
 
 	let loader = new TextureLoader();
 	let texturePath = null;
@@ -221,13 +234,12 @@ function applyTextureToMat( threeMat, folder, textureName, textureExtension = '.
 
 		textureExtension = '';
 
-		if ( res[ 1 ] !== '.jpg' ) {
+		if ( isAlphaExtensionRegex.test( res[ 1 ] ) ) {
 
-			// If a file other than a JPEG is loaded, we want a sharp, transparency-enabled image
+			threeMat.alphaTest = alphaTest;
+			threeMat.transparent = true;
 
-			threeMat.alphaTest = 1;
-
-	  }
+		}
 
 	}
 
@@ -242,6 +254,13 @@ function applyTextureToMat( threeMat, folder, textureName, textureExtension = '.
 			texture.encoding = textureEncoding;
 			threeMat.map = texture;
 			threeMat.needsUpdate = true;
+
+			if ( ! textureFiltering ) {
+
+				texture.minFilter = LinearMipmapNearestFilter;
+				texture.magFilter = NearestFilter;
+
+			}
 
 			// If the height is nicely divisible by the width: it's an animated texture
 			if ( texture.image.height !== texture.image.width && texture.image.height % texture.image.width === 0 ) {
@@ -260,7 +279,7 @@ function applyTextureToMat( threeMat, folder, textureName, textureExtension = '.
 
 	if ( maskName != null ) {
 
-		threeMat.alphaTest = textureName.toLowerCase().endsWith( '.jpg' ) || textureExtension.toLowerCase() === '.jpg' ? 0.2 : 1.0;
+		threeMat.alphaTest = alphaTest;
 		threeMat.transparent = true;
 
 		if ( maskExtension == '.zip' && fflate != null ) {
@@ -317,7 +336,7 @@ function applyTextureToMat( threeMat, folder, textureName, textureExtension = '.
 
 					bmpURI = bmpURI.concat( btoa( dataStr ) );
 
-					makeMaskPromise( bmpURI, threeMat, loader, LinearEncoding, textureWrapping ).then( ( mask ) => {
+					makeMaskPromise( bmpURI, threeMat, loader, LinearEncoding, textureWrapping, textureFiltering ).then( ( mask ) => {
 
 						resolve( mask );
 
@@ -334,7 +353,7 @@ function applyTextureToMat( threeMat, folder, textureName, textureExtension = '.
 		} else if ( maskExtension != '.zip' ) {
 
 			const bmpPath = folder + '/' + maskName + maskExtension;
-			loadingPromises.push( makeMaskPromise( bmpPath, threeMat, loader, LinearEncoding, textureWrapping ) );
+			loadingPromises.push( makeMaskPromise( bmpPath, threeMat, loader, LinearEncoding, textureWrapping, textureFiltering ) );
 
 		}
 
@@ -343,7 +362,7 @@ function applyTextureToMat( threeMat, folder, textureName, textureExtension = '.
 }
 
 function makeThreeMaterial( rwxMaterial, folder, textureExtension = '.jpg', maskExtension = '.zip',
-	fflate = null, useBasicMaterial = false, textureEncoding = sRGBEncoding ) {
+	fflate = null, useBasicMaterial = false, textureEncoding = sRGBEncoding, alphaTest = defaultAlphaTest ) {
 
 	let materialDict = { name: rwxMaterial.getMatSignature() };
 
@@ -378,6 +397,8 @@ function makeThreeMaterial( rwxMaterial, folder, textureExtension = '.jpg', mask
 		materialDict[ 'wireframe' ] = false;
 
 	}
+
+	const textureFiltering = rwxMaterial.texturemodes.includes( TextureMode.FILTER );
 
 	let textureWrapping = ClampToEdgeWrapping;
 
@@ -440,7 +461,7 @@ function makeThreeMaterial( rwxMaterial, folder, textureExtension = '.jpg', mask
 		threeMat.color.multiplyScalar( brightnessRatio );
 
 		applyTextureToMat( threeMat, folder, rwxMaterial.texture, textureExtension, rwxMaterial.mask,
-			maskExtension, fflate, loadingPromises, textureEncoding, textureWrapping );
+			maskExtension, fflate, loadingPromises, textureEncoding, textureWrapping, alphaTest, textureFiltering );
 
 	}
 
@@ -1423,8 +1444,10 @@ class RWXMaterial {
 		this.opacity = 1.0;
 		this.lightsampling = LightSampling.FACET;
 		this.geometrysampling = GeometrySampling.SOLID;
-		this.texturemodes = [ TextureMode
-			.LIT,
+		this.texturemodes = [
+			TextureMode.LIT,
+			TextureMode.FORESHORTEN,
+			TextureMode.FILTER,
 		]; // There's possibly more than one mode enabled at a time (hence why we use an array)
 		this.materialmode = MaterialMode.NULL; // Neither NONE nor DOUBLE: we only render one side of the polygon
 		this.texture = null;
@@ -1496,7 +1519,7 @@ class RWXMaterialManager {
 
 	constructor( folder, textureExtension = '.jpg', maskExtension =
 	'.zip', fflate = null, useBasicMaterial = false,
-	textureEncoding = sRGBEncoding ) {
+	textureEncoding = sRGBEncoding, alphaTest = defaultAlphaTest ) {
 
 		this.threeMaterialMap = new Map();
 
@@ -1506,6 +1529,7 @@ class RWXMaterialManager {
 		this.fflate = fflate;
 		this.useBasicMaterial = useBasicMaterial;
 		this.textureEncoding = textureEncoding;
+		this.alphaTest = alphaTest;
 
 	}
 
@@ -1516,7 +1540,7 @@ class RWXMaterialManager {
 
 		const threeMaterial = makeThreeMaterial( newRWXMaterial,
 			this.folder, this.textureExtension, this.maskExtension, this.fflate,
-			this.useBasicMaterial, this.textureEncoding );
+			this.useBasicMaterial, this.textureEncoding, this.alphaTest );
 		threeMaterial.signature = finalSignature;
 
 		this.threeMaterialMap.set( finalSignature, threeMaterial );
@@ -1700,6 +1724,9 @@ class RWXLoader extends Loader {
 		this.collisionRegex = /^ *(collision) +(on|off).*$/i;
 		this.lightsamplingRegex = /^ *(lightsampling) +(facet|vertex).*$/i;
 		this.geometrysamplingRegex = /^ *(geometrysampling) +(pointcloud|wireframe|solid).*$/i;
+		this.texturemodesRegex = /^ *(texturemode(s)?)(( +null)|( +lit| +foreshorten| +filter)+).*$/i;
+		this.addtexturemodeRegex = /^ *(addtexturemode)( +lit| +foreshorten| +filter).*$/i;
+		this.removetexturemodeRegex = /^ *(removetexturemode)( +lit| +foreshorten| +filter).*$/i;
 		this.textureaddressmodeRegex = /^ *(#\!)? *(textureaddressmode) +(wrap|mirror|clamp).*$/i;
 		this.axisalignmentRegex = /^ *(axisalignment) +(none|zorientx|zorienty|xyz).*$/i;
 		this.blockRegex = /^ *(block)(( +[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)(e[-+][0-9]+)?){3}).*$/i;
@@ -1722,6 +1749,8 @@ class RWXLoader extends Loader {
 		this.enableTextures = true;
 		this.forceEarcut = false;
 		this.verboseWarning = false;
+		this.alphaTest = defaultAlphaTest;
+		this.parseTextureModes = false;
 
 	}
 
@@ -1828,6 +1857,25 @@ class RWXLoader extends Loader {
 
 	}
 
+	// Set the threshold value to use for texture transparency testing (between 0 and 1), 0.2 by default
+	setAlphaTest( alphaTest ) {
+
+		this.alphaTest = alphaTest;
+
+		return this;
+
+	}
+
+	// Whether or not to parse texture modes in RWX commands and set materials accordingly, false by default, meaning: all materials will
+	// hold the default textures modes (for fancier texture display)
+	setParseTextureModes( parseTextureModes ) {
+
+		this.parseTextureModes = parseTextureModes;
+
+		return this;
+
+	}
+
 	load( rwxFile, onLoad, onProgress, onError ) {
 
 		let scope = this;
@@ -1897,7 +1945,7 @@ class RWXLoader extends Loader {
 			loadingPromises: [],
 
 			materialTracker: this.rwxMaterialManager !== null ? new RWXMaterialTracker( this.rwxMaterialManager ) :
-				new RWXMaterialTracker( new RWXMaterialManager( textureFolderPath, this.textureExtension, this.maskExtension, this.fflate, this.useBasicMaterial, this.textureEncoding ) ),
+				new RWXMaterialTracker( new RWXMaterialManager( textureFolderPath, this.textureExtension, this.maskExtension, this.fflate, this.useBasicMaterial, this.textureEncoding, this.alphaTest ) ),
 
 			taggedMaterials: {},
 			quadRatioHint: null,
@@ -2430,21 +2478,9 @@ class RWXLoader extends Loader {
 			res = this.materialModeRegex.exec( line );
 			if ( res != null ) {
 
-				const matMode = res[ 4 ].toLowerCase();
+				const mm = res[ 4 ].toUpperCase();
 
-				if ( matMode == 'none' ) {
-
-					ctx.materialTracker.currentRWXMaterial.materialmode = MaterialMode.NONE;
-
-				} else if ( matMode == 'null' ) {
-
-					ctx.materialTracker.currentRWXMaterial.materialmode = MaterialMode.NULL;
-
-				} else if ( matMode == 'double' ) {
-
-					ctx.materialTracker.currentRWXMaterial.materialmode = MaterialMode.DOUBLE;
-
-				}
+				ctx.materialTracker.currentRWXMaterial.materialmode = MaterialMode[ mm ];
 
 				continue;
 
@@ -2472,17 +2508,9 @@ class RWXLoader extends Loader {
 			res = this.lightsamplingRegex.exec( line );
 			if ( res != null ) {
 
-				const ls = res[ 2 ].toLowerCase();
+				const ls = res[ 2 ].toUpperCase();
 
-				if ( ls == 'vertex' ) {
-
-					ctx.materialTracker.currentRWXMaterial.lightsampling = LightSampling.VERTEX;
-
-				} else {
-
-					ctx.materialTracker.currentRWXMaterial.lightsampling = LightSampling.FACET;
-
-				}
+				ctx.materialTracker.currentRWXMaterial.lightsampling = LightSampling[ ls ];
 
 				continue;
 
@@ -2491,44 +2519,79 @@ class RWXLoader extends Loader {
 			res = this.geometrysamplingRegex.exec( line );
 			if ( res != null ) {
 
-				const gs = res[ 2 ].toLowerCase();
+				const gs = res[ 2 ].toUpperCase();
 
-				if ( gs == 'pointcloud' ) {
+				ctx.materialTracker.currentRWXMaterial.geometrysampling = GeometrySampling[ gs ];
 
-					ctx.materialTracker.currentRWXMaterial.geometrysampling = GeometrySampling.POINTCLOUD;
+				continue;
 
-				} else if ( gs == 'wireframe' ) {
+			}
 
-					ctx.materialTracker.currentRWXMaterial.geometrysampling = GeometrySampling.WIREFRAME;
+			if ( this.parseTextureModes ) {
 
-				} else {
+				res = this.texturemodesRegex.exec( line );
+				if ( res != null ) {
 
-					ctx.materialTracker.currentRWXMaterial.geometrysampling = GeometrySampling.SOLID;
+					ctx.materialTracker.currentRWXMaterial.texturemodes = [];
+					if ( ! res[ 4 ] ) { // when NULL mode is specified: emptying the array was enough
+
+						// Actual mode(s) specified: set the material with them
+						const tms = res[ 3 ].split( ' ' ).filter( value => value !== '' ).map( value => value.toUpperCase() );
+						for ( const tm of tms ) {
+
+							ctx.materialTracker.currentRWXMaterial.texturemodes.push( TextureMode[ tm ] );
+
+						}
+
+						ctx.materialTracker.currentRWXMaterial.texturemodes.sort();
+
+					}
+
+					continue;
 
 				}
 
-				continue;
+				res = this.addtexturemodeRegex.exec( line );
+				if ( res != null ) {
+
+					const tm = res[ 2 ].trim().toUpperCase();
+
+					if ( ! ctx.materialTracker.currentRWXMaterial.texturemodes.includes( TextureMode[ tm ] ) ) {
+
+						ctx.materialTracker.currentRWXMaterial.texturemodes.push( TextureMode[ tm ] );
+						ctx.materialTracker.currentRWXMaterial.texturemodes.sort();
+
+					}
+
+					continue;
+
+				}
+
+				res = this.removetexturemodeRegex.exec( line );
+				if ( res != null ) {
+
+				  const tm = res[ 2 ].trim().toUpperCase();
+				  const id = ctx.materialTracker.currentRWXMaterial.texturemodes.indexOf( TextureMode[ tm ] );
+
+					if ( id >= 0 ) {
+
+						ctx.materialTracker.currentRWXMaterial.texturemodes.splice( id, 1 );
+						ctx.materialTracker.currentRWXMaterial.texturemodes.sort();
+
+					}
+
+					continue;
+
+				}
 
 			}
 
 			res = this.textureaddressmodeRegex.exec( line );
 			if ( res != null ) {
 
-				const tam = res[ 3 ].toLowerCase();
+				const tam = res[ 3 ].toUpperCase();
 
-				if ( tam == 'wrap' ) {
-
-					ctx.materialTracker.currentRWXMaterial.textureaddressmode = TextureAddressMode.WRAP;
-
-				} else if ( tam == 'mirror' ) {
-
-					ctx.materialTracker.currentRWXMaterial.textureaddressmode = TextureAddressMode.MIRROR;
-
-				} else {
-
-					ctx.materialTracker.currentRWXMaterial.textureaddressmode = TextureAddressMode.CLAMP;
-
-				}
+				ctx.materialTracker.currentRWXMaterial.textureaddressmode = TextureAddressMode[ tam ];
 
 				continue;
 

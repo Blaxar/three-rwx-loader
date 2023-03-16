@@ -95,6 +95,16 @@ Set this to `true` to get a single `Mesh` holding everything.
 
   - Enable verbose warning logs for various non-critical mishaps, 'false' by default.
 
+- `setAlphaTest( AlphaTest: float ): this`
+
+  - Set the threshold value to use for texture transparency testing (between 0 and 1), 0.2 by default
+
+- `setParseTextureModes( parseTextureModes: boolean ): this`
+
+  - Whether or not to parse texture modes in RWX commands and set materials accordingly
+
+  - `false` by default, meaning: all materials will hold the default textures modes (for fancier texture display)
+
 ## Testing
 
 ```bash

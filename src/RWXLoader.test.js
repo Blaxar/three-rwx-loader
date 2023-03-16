@@ -180,6 +180,26 @@ describe( 'RWXLoader', () => {
 
 	} );
 
+	it( 'setAlphaTest', () => {
+
+		let loader = new RWXLoader();
+
+		assert.equal( loader.alphaTest, 0.2 );
+		assert.strictEqual( loader.setAlphaTest( 0.6 ), loader );
+		assert.equal( loader.alphaTest, 0.6 );
+
+	} );
+
+	it( 'setParseTextureModes', () => {
+
+		let loader = new RWXLoader();
+
+		assert.equal( loader.parseTextureModes, false );
+		assert.strictEqual( loader.setParseTextureModes( true ), loader );
+		assert.equal( loader.parseTextureModes, true );
+
+	} );
+
 	it( 'RWXMaterial', () => {
 
 		let rwxMat = new RWXMaterial();
@@ -195,15 +215,17 @@ describe( 'RWXLoader', () => {
 		assert.equal( rwxMat.opacity, 1.0 );
 		assert.equal( rwxMat.lightsampling, LightSampling.FACET );
 		assert.equal( rwxMat.geometrysampling, GeometrySampling.SOLID );
-		assert.equal( rwxMat.texturemodes.length, 1 );
+		assert.equal( rwxMat.texturemodes.length, 3 );
 		assert.equal( rwxMat.texturemodes[ 0 ], TextureMode.LIT );
+		assert.equal( rwxMat.texturemodes[ 1 ], TextureMode.FORESHORTEN );
+		assert.equal( rwxMat.texturemodes[ 2 ], TextureMode.FILTER );
 		assert.equal( rwxMat.materialmode, MaterialMode.NULL );
 		assert.equal( rwxMat.texture, null );
 		assert.equal( rwxMat.mask, null );
 		assert.equal( rwxMat.textureaddressmode, TextureAddressMode.WRAP );
 		assert.equal( rwxMat.tag, 0 );
 
-		assert.equal( rwxMat.getMatSignature(), '0.0000.0000.000_0.6900.0000.000_1.000_1_3_1_1___0_true_0_1.00' );
+		assert.equal( rwxMat.getMatSignature(), '0.0000.0000.000_0.6900.0000.000_1.000_1_3_123_1___0_true_0_1.00' );
 
 		const clonedMat = rwxMat.clone();
 
@@ -212,7 +234,7 @@ describe( 'RWXLoader', () => {
 		rwxMat.tag = 100;
 		rwxMat.ratio = 0.5;
 
-		assert.equal( rwxMat.getMatSignature(), '0.0000.0000.000_0.6900.0000.000_1.000_1_3_1_1_wood1_wood1m_0_true_100_0.50' );
+		assert.equal( rwxMat.getMatSignature(), '0.0000.0000.000_0.6900.0000.000_1.000_1_3_123_1_wood1_wood1m_0_true_100_0.50' );
 
 		rwxMat.color[ 0 ] = 1;
 		rwxMat.color[ 1 ] = 2;
@@ -223,7 +245,7 @@ describe( 'RWXLoader', () => {
 		rwxMat.opacity = 0.5;
 		rwxMat.lightsampling = LightSampling.VERTEX;
 		rwxMat.geometrysampling = GeometrySampling.WIREFRAME;
-		rwxMat.texturemodes.push( TextureMode.FILTER );
+		rwxMat.texturemodes.pop();
 		rwxMat.materialmode = MaterialMode.NONE;
 		rwxMat.texture = 'texture1';
 		rwxMat.mask = 'texture1m';
@@ -247,8 +269,10 @@ describe( 'RWXLoader', () => {
 		assert.equal( clonedMat.opacity, 1.0 );
 		assert.equal( clonedMat.lightsampling, LightSampling.FACET );
 		assert.equal( clonedMat.geometrysampling, GeometrySampling.SOLID );
-		assert.equal( clonedMat.texturemodes.length, 1 );
+		assert.equal( clonedMat.texturemodes.length, 3 );
 		assert.equal( clonedMat.texturemodes[ 0 ], TextureMode.LIT );
+		assert.equal( clonedMat.texturemodes[ 1 ], TextureMode.FORESHORTEN );
+		assert.equal( clonedMat.texturemodes[ 2 ], TextureMode.FILTER );
 		assert.equal( clonedMat.materialmode, MaterialMode.NULL );
 		assert.equal( clonedMat.texture, null);
 		assert.equal( clonedMat.mask, null);
@@ -272,8 +296,10 @@ describe( 'RWXLoader', () => {
 		assert.equal( mgr.currentRWXMaterial.opacity, 1.0 );
 		assert.equal( mgr.currentRWXMaterial.lightsampling, LightSampling.FACET );
 		assert.equal( mgr.currentRWXMaterial.geometrysampling, GeometrySampling.SOLID );
-		assert.equal( mgr.currentRWXMaterial.texturemodes.length, 1 );
+		assert.equal( mgr.currentRWXMaterial.texturemodes.length, 3 );
 		assert.equal( mgr.currentRWXMaterial.texturemodes[ 0 ], TextureMode.LIT );
+		assert.equal( mgr.currentRWXMaterial.texturemodes[ 1 ], TextureMode.FORESHORTEN );
+		assert.equal( mgr.currentRWXMaterial.texturemodes[ 2 ], TextureMode.FILTER );
 		assert.equal( mgr.currentRWXMaterial.materialmode, MaterialMode.NULL );
 		assert.equal( mgr.currentRWXMaterial.texture, null);
 		assert.equal( mgr.currentRWXMaterial.mask, null);
