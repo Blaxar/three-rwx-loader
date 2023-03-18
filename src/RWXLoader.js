@@ -71,6 +71,7 @@ const pictureTag = 200;
 
 const glossRatio = 0.1;
 const defaultAlphaTest = 0.2;
+const defaultSurface = [ 0.69, 0.0, 0.0 ]; // Ambience (recommended AW 2.2), Diffusion, Specularity
 
 const extensionRegex = /^.*(\.[^\\]+)$/i;
 const isAlphaExtensionRegex = /^\.(tiff|png|webp|gif)$/i;
@@ -412,6 +413,9 @@ function makeThreeMaterial( rwxMaterial, folder, textureExtension = '.jpg', mask
 
 	}
 
+	// Missing Lit mode means we should not take the surface values into account
+	const surface = rwxMaterial.texturemodes.includes( TextureMode.LIT ) ? rwxMaterial.surface : defaultSurface;
+
 	if ( ! useBasicMaterial ) {
 
 		if ( rwxMaterial.lightsampling == LightSampling.FACET ) {
@@ -427,11 +431,11 @@ function makeThreeMaterial( rwxMaterial, folder, textureExtension = '.jpg', mask
 		// The specular value in a Phong material is expressed using an hexadecimal value
 		// holding on 3 bytes, each representing a different color channel.
 		// Without any prior knowledge: we safely assume a white light instead
-		const whiteSpecular = Math.trunc( rwxMaterial.surface[ 2 ] * glossRatio * 255 );
+		const whiteSpecular = Math.trunc( surface[ 2 ] * glossRatio * 255 );
 		materialDict[ 'specular' ] = ( whiteSpecular << 16 ) + ( whiteSpecular << 8 ) + whiteSpecular;
 
 		// Same thing for the emissive value
-		const whiteEmissive = Math.trunc( rwxMaterial.surface[ 1 ] );
+		const whiteEmissive = Math.trunc( surface[ 1 ] );
 		materialDict[ 'emissive' ] = ( whiteEmissive << 16 ) + ( whiteEmissive << 8 ) + whiteEmissive;
 
 		materialDict[ 'shininess' ] = 30; // '30' is the demo's default Phong material shininess value
@@ -447,7 +451,7 @@ function makeThreeMaterial( rwxMaterial, folder, textureExtension = '.jpg', mask
 	threeMat.userData.collision = rwxMaterial.collision;
 	threeMat.userData.ratio = rwxMaterial.ratio;
 
-	const brightnessRatio = Math.max( ...rwxMaterial.surface );
+	const brightnessRatio = Math.max( ...surface );
 
 	if ( rwxMaterial.texture == null ) {
 
@@ -1440,7 +1444,7 @@ class RWXMaterial {
 
 	  // Material related properties start here
 		this.color = [ 0.0, 0.0, 0.0 ]; // Red, Green, Blue
-		this.surface = [ 0.69, 0.0, 0.0 ]; // Ambience (recommended AW 2.2), Diffusion, Specularity
+		this.surface = defaultSurface.slice( 0, 3 );
 		this.opacity = 1.0;
 		this.lightsampling = LightSampling.FACET;
 		this.geometrysampling = GeometrySampling.SOLID;
@@ -1750,7 +1754,7 @@ class RWXLoader extends Loader {
 		this.forceEarcut = false;
 		this.verboseWarning = false;
 		this.alphaTest = defaultAlphaTest;
-		this.parseTextureModes = false;
+		this.forceTextureFiltering = true;
 
 	}
 
@@ -1866,11 +1870,11 @@ class RWXLoader extends Loader {
 
 	}
 
-	// Whether or not to parse texture modes in RWX commands and set materials accordingly, false by default, meaning: all materials will
-	// hold the default textures modes (for fancier texture display)
-	setParseTextureModes( parseTextureModes ) {
+	// Whether or not to force texture filtering regardless of texture modes, 'true' by default, meaning: all materials
+	// will display their textures in a "fancy" way
+	setForceTextureFiltering( forceTextureFiltering ) {
 
-		this.parseTextureModes = parseTextureModes;
+		this.forceTextureFiltering = forceTextureFiltering;
 
 		return this;
 
@@ -2527,62 +2531,75 @@ class RWXLoader extends Loader {
 
 			}
 
-			if ( this.parseTextureModes ) {
+			res = this.texturemodesRegex.exec( line );
+			if ( res != null ) {
 
-				res = this.texturemodesRegex.exec( line );
-				if ( res != null ) {
+				ctx.materialTracker.currentRWXMaterial.texturemodes = [];
+				if ( ! res[ 4 ] ) { // when NULL mode is specified: emptying the array was enough
 
-					ctx.materialTracker.currentRWXMaterial.texturemodes = [];
-					if ( ! res[ 4 ] ) { // when NULL mode is specified: emptying the array was enough
+					// Actual mode(s) specified: set the material with them
+					const tms = res[ 3 ].split( ' ' ).filter( value => value !== '' ).map( value => value.toUpperCase() );
+					for ( const tm of tms ) {
 
-						// Actual mode(s) specified: set the material with them
-						const tms = res[ 3 ].split( ' ' ).filter( value => value !== '' ).map( value => value.toUpperCase() );
-						for ( const tm of tms ) {
+						// Do not push the same texture mode twice
+						if ( ! ctx.materialTracker.currentRWXMaterial.texturemodes.includes( TextureMode[ tm ] ) ) {
 
-							ctx.materialTracker.currentRWXMaterial.texturemodes.push( TextureMode[ tm ] );
+						  ctx.materialTracker.currentRWXMaterial.texturemodes.push( TextureMode[ tm ] );
 
 						}
 
-						ctx.materialTracker.currentRWXMaterial.texturemodes.sort();
+					}
+
+					// Filter mode must be there when forcing texture filtering
+					if ( this.forceTextureFiltering && ! ctx.materialTracker.currentRWXMaterial.texturemodes.includes( TextureMode.FILTER ) ) {
+
+						ctx.materialTracker.currentRWXMaterial.texturemodes.push( TextureMode.FILTER );
 
 					}
 
-					continue;
+					ctx.materialTracker.currentRWXMaterial.texturemodes.sort();
 
 				}
 
-				res = this.addtexturemodeRegex.exec( line );
-				if ( res != null ) {
+				continue;
 
-					const tm = res[ 2 ].trim().toUpperCase();
+			}
 
-					if ( ! ctx.materialTracker.currentRWXMaterial.texturemodes.includes( TextureMode[ tm ] ) ) {
+			res = this.addtexturemodeRegex.exec( line );
+			if ( res != null ) {
 
-						ctx.materialTracker.currentRWXMaterial.texturemodes.push( TextureMode[ tm ] );
-						ctx.materialTracker.currentRWXMaterial.texturemodes.sort();
+				const tm = res[ 2 ].trim().toUpperCase();
 
-					}
+				// Do not push the same texture mode twice
+				if ( ! ctx.materialTracker.currentRWXMaterial.texturemodes.includes( TextureMode[ tm ] ) ) {
 
-					continue;
+					ctx.materialTracker.currentRWXMaterial.texturemodes.push( TextureMode[ tm ] );
+					ctx.materialTracker.currentRWXMaterial.texturemodes.sort();
+
+				}
+
+				continue;
+
+			}
+
+			res = this.removetexturemodeRegex.exec( line );
+			if ( res != null ) {
+
+				const tm = res[ 2 ].trim().toUpperCase();
+
+				// Cannot remove Filter mode when forcing texture filtering
+				if ( this.forceTextureFiltering && TextureMode[ tm ] === TextureMode.FILTER ) continue;
+
+			  const id = ctx.materialTracker.currentRWXMaterial.texturemodes.indexOf( TextureMode[ tm ] );
+
+				if ( id >= 0 ) {
+
+					ctx.materialTracker.currentRWXMaterial.texturemodes.splice( id, 1 );
+					ctx.materialTracker.currentRWXMaterial.texturemodes.sort();
 
 				}
 
-				res = this.removetexturemodeRegex.exec( line );
-				if ( res != null ) {
-
-				  const tm = res[ 2 ].trim().toUpperCase();
-				  const id = ctx.materialTracker.currentRWXMaterial.texturemodes.indexOf( TextureMode[ tm ] );
-
-					if ( id >= 0 ) {
-
-						ctx.materialTracker.currentRWXMaterial.texturemodes.splice( id, 1 );
-						ctx.materialTracker.currentRWXMaterial.texturemodes.sort();
-
-					}
-
-					continue;
-
-				}
+				continue;
 
 			}
 

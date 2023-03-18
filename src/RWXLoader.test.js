@@ -190,13 +190,13 @@ describe( 'RWXLoader', () => {
 
 	} );
 
-	it( 'setParseTextureModes', () => {
+	it( 'setForceTextureFiltering', () => {
 
 		let loader = new RWXLoader();
 
-		assert.equal( loader.parseTextureModes, false );
-		assert.strictEqual( loader.setParseTextureModes( true ), loader );
-		assert.equal( loader.parseTextureModes, true );
+		assert.equal( loader.forceTextureFiltering, true );
+		assert.strictEqual( loader.setForceTextureFiltering( false ), loader );
+		assert.equal( loader.forceTextureFiltering, false );
 
 	} );
 
