@@ -198,6 +198,17 @@ function makeMaskPromise( bmpURI, threeMat, loader, textureEncoding = LinearEnco
 
 		loader.load( bmpURI, ( maskTexture ) => {
 
+			// If the height is nicely divisible by the width: it's an animated mask
+			if ( maskTexture.image.height !== maskTexture.image.width && maskTexture.image.height % maskTexture.image.width === 0 ) {
+
+				threeMat.userData.rwx.maskAnimation = { yTiles: maskTexture.image.height / maskTexture.image.width,
+					yHeight: maskTexture.image.width / maskTexture.image.height,
+					step: 0 };
+				maskTexture.offset.y = ( 1.0 - threeMat.userData.rwx.maskAnimation.yHeight );
+				maskTexture.repeat.set( 1, threeMat.userData.rwx.maskAnimation.yHeight );
+
+			}
+
 			maskTexture.wrapS = textureWrapping;
 			maskTexture.wrapT = textureWrapping;
 			maskTexture.encoding = textureEncoding;
@@ -266,7 +277,9 @@ function applyTextureToMat( threeMat, folder, textureName, textureExtension = '.
 			// If the height is nicely divisible by the width: it's an animated texture
 			if ( texture.image.height !== texture.image.width && texture.image.height % texture.image.width === 0 ) {
 
-				threeMat.userData.rwx.animation = { yTiles: texture.image.height / texture.image.width, yHeight: texture.image.width / texture.image.height, step: 0 };
+				threeMat.userData.rwx.animation = { yTiles: texture.image.height / texture.image.width,
+					yHeight: texture.image.width / texture.image.height,
+					step: 0 };
 				texture.offset.y = ( 1.0 - threeMat.userData.rwx.animation.yHeight );
 				texture.repeat.set( 1, threeMat.userData.rwx.animation.yHeight );
 
@@ -1580,11 +1593,20 @@ class RWXMaterialManager {
 		for ( const entry of this.threeMaterialMap ) {
 
 			const animation = entry[ 1 ].threeMat.userData.rwx.animation;
+			const maskAnimation = entry[ 1 ].threeMat.userData.rwx.maskAnimation;
 
 			if ( animation !== undefined ) {
 
 				animation.step = ( animation.step + 1 ) % animation.yTiles;
 				entry[ 1 ].threeMat.map.offset.y = ( 1.0 - animation.yHeight ) - animation.step * animation.yHeight;
+				entry[ 1 ].threeMat.needsUpdate = true;
+
+			}
+
+			if ( maskAnimation !== undefined ) {
+
+				maskAnimation.step = ( maskAnimation.step + 1 ) % maskAnimation.yTiles;
+				entry[ 1 ].threeMat.alphaMap.offset.y = ( 1.0 - maskAnimation.yHeight ) - maskAnimation.step * maskAnimation.yHeight;
 				entry[ 1 ].threeMat.needsUpdate = true;
 
 			}

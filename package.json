@@ -1,6 +1,6 @@
 {
   "name": "three-rwx-loader",
-  "version": "0.11.0",
+  "version": "0.11.1",
   "description": "three.js RWX (AW) loader",
   "type": "module",
   "main": "src/RWXLoader.js",
@@ -20,7 +20,7 @@
   },
   "dependencies": {
     "poly2tri": "^1.5.0",
-    "three": ">0.131.2"
+    "three": ">0.151.2"
   },
   "peerDependencies": {
     "fflate": "^0.7.4"
