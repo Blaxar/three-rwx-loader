@@ -22,8 +22,8 @@ import {
 	RepeatWrapping,
 	ClampToEdgeWrapping,
 	MirroredRepeatWrapping,
-	LinearEncoding,
-	sRGBEncoding,
+	LinearSRGBColorSpace,
+	SRGBColorSpace,
 	FrontSide,
 	DoubleSide,
 	Group,
@@ -191,7 +191,7 @@ function triangulateFaces( vertices, uvs, loop, objectName, forceEarcut = false,
 
 }
 
-function makeMaskPromise( bmpURI, threeMat, loader, textureEncoding = LinearEncoding,
+function makeMaskPromise( bmpURI, threeMat, loader, textureColorSpace = LinearSRGBColorSpace,
 	textureWrapping = RepeatWrapping, textureFiltering = true ) {
 
 	return new Promise( ( resolveMask ) => {
@@ -211,7 +211,7 @@ function makeMaskPromise( bmpURI, threeMat, loader, textureEncoding = LinearEnco
 
 			maskTexture.wrapS = textureWrapping;
 			maskTexture.wrapT = textureWrapping;
-			maskTexture.encoding = textureEncoding;
+			maskTexture.colorSpace = textureColorSpace;
 
 			if ( ! textureFiltering ) {
 
@@ -232,7 +232,7 @@ function makeMaskPromise( bmpURI, threeMat, loader, textureEncoding = LinearEnco
 }
 
 function applyTextureToMat( threeMat, folder, textureName, textureExtension = '.jpg', maskName = null,
-	maskExtension = '.zip', fflate = null, loadingPromises = [], textureEncoding = sRGBEncoding,
+	maskExtension = '.zip', fflate = null, loadingPromises = [], textureColorSpace = SRGBColorSpace,
 	textureWrapping = RepeatWrapping, alphaTest = defaultAlphaTest, textureFiltering = true ) {
 
 	let loader = new TextureLoader();
@@ -263,7 +263,7 @@ function applyTextureToMat( threeMat, folder, textureName, textureExtension = '.
 
 			texture.wrapS = textureWrapping;
 			texture.wrapT = textureWrapping;
-			texture.encoding = textureEncoding;
+			texture.colorSpace = textureColorSpace;
 			threeMat.map = texture;
 			threeMat.needsUpdate = true;
 
@@ -350,7 +350,7 @@ function applyTextureToMat( threeMat, folder, textureName, textureExtension = '.
 
 					bmpURI = bmpURI.concat( btoa( dataStr ) );
 
-					makeMaskPromise( bmpURI, threeMat, loader, LinearEncoding, textureWrapping, textureFiltering ).then( ( mask ) => {
+					makeMaskPromise( bmpURI, threeMat, loader, LinearSRGBColorSpace, textureWrapping, textureFiltering ).then( ( mask ) => {
 
 						resolve( mask );
 
@@ -367,7 +367,7 @@ function applyTextureToMat( threeMat, folder, textureName, textureExtension = '.
 		} else if ( maskExtension != '.zip' ) {
 
 			const bmpPath = folder + '/' + maskName + maskExtension;
-			loadingPromises.push( makeMaskPromise( bmpPath, threeMat, loader, LinearEncoding, textureWrapping, textureFiltering ) );
+			loadingPromises.push( makeMaskPromise( bmpPath, threeMat, loader, LinearSRGBColorSpace, textureWrapping, textureFiltering ) );
 
 		}
 
@@ -376,7 +376,7 @@ function applyTextureToMat( threeMat, folder, textureName, textureExtension = '.
 }
 
 function makeThreeMaterial( rwxMaterial, folder, textureExtension = '.jpg', maskExtension = '.zip',
-	fflate = null, useBasicMaterial = false, textureEncoding = sRGBEncoding, alphaTest = defaultAlphaTest ) {
+	fflate = null, useBasicMaterial = false, textureColorSpace = SRGBColorSpace, alphaTest = defaultAlphaTest ) {
 
 	let materialDict = { name: rwxMaterial.getMatSignature() };
 
@@ -468,7 +468,7 @@ function makeThreeMaterial( rwxMaterial, folder, textureExtension = '.jpg', mask
 
 	if ( rwxMaterial.texture == null ) {
 
-		// Assuming sRGB encoding for colors in RWX commands, so we need to convert back to linear
+		// Assuming sRGB color space for colors in RWX commands, so we need to convert back to linear
 		threeMat.color.set( rwxMaterial.getColorHexValue() ).convertSRGBToLinear();
 		threeMat.color.multiplyScalar( brightnessRatio );
 
@@ -478,7 +478,7 @@ function makeThreeMaterial( rwxMaterial, folder, textureExtension = '.jpg', mask
 		threeMat.color.multiplyScalar( brightnessRatio );
 
 		applyTextureToMat( threeMat, folder, rwxMaterial.texture, textureExtension, rwxMaterial.mask,
-			maskExtension, fflate, loadingPromises, textureEncoding, textureWrapping, alphaTest, textureFiltering );
+			maskExtension, fflate, loadingPromises, textureColorSpace, textureWrapping, alphaTest, textureFiltering );
 
 	}
 
@@ -1536,7 +1536,7 @@ class RWXMaterialManager {
 
 	constructor( folder, textureExtension = '.jpg', maskExtension =
 	'.zip', fflate = null, useBasicMaterial = false,
-	textureEncoding = sRGBEncoding, alphaTest = defaultAlphaTest ) {
+	textureColorSpace = SRGBColorSpace, alphaTest = defaultAlphaTest ) {
 
 		this.threeMaterialMap = new Map();
 
@@ -1545,7 +1545,7 @@ class RWXMaterialManager {
 		this.maskExtension = maskExtension;
 		this.fflate = fflate;
 		this.useBasicMaterial = useBasicMaterial;
-		this.textureEncoding = textureEncoding;
+		this.textureColorSpace = textureColorSpace;
 		this.alphaTest = alphaTest;
 
 	}
@@ -1557,7 +1557,7 @@ class RWXMaterialManager {
 
 		const threeMaterial = makeThreeMaterial( newRWXMaterial,
 			this.folder, this.textureExtension, this.maskExtension, this.fflate,
-			this.useBasicMaterial, this.textureEncoding, this.alphaTest );
+			this.useBasicMaterial, this.textureColorSpace, this.alphaTest );
 		threeMaterial.signature = finalSignature;
 
 		this.threeMaterialMap.set( finalSignature, threeMaterial );
@@ -1771,7 +1771,7 @@ class RWXLoader extends Loader {
 		this.flatten = false;
 		this.useBasicMaterial = false;
 		this.rwxMaterialManager = null;
-		this.textureEncoding = sRGBEncoding;
+		this.textureColorSpace = SRGBColorSpace;
 		this.enableTextures = true;
 		this.forceEarcut = false;
 		this.verboseWarning = false;
@@ -1846,10 +1846,10 @@ class RWXLoader extends Loader {
 
 	}
 
-	// Set the texture encoding mode used for textures loaded for materials (default is sRGBEncoding)
-	setTextureEncoding( textureEncoding ) {
+	// Set the texture color space used for textures loaded for materials (default is SRGBColorSpace)
+	setTextureColorSpace( textureColorSpace ) {
 
-		this.textureEncoding = textureEncoding;
+		this.textureColorSpace = textureColorSpace;
 
 		return this;
 
@@ -1971,7 +1971,7 @@ class RWXLoader extends Loader {
 			loadingPromises: [],
 
 			materialTracker: this.rwxMaterialManager !== null ? new RWXMaterialTracker( this.rwxMaterialManager ) :
-				new RWXMaterialTracker( new RWXMaterialManager( textureFolderPath, this.textureExtension, this.maskExtension, this.fflate, this.useBasicMaterial, this.textureEncoding, this.alphaTest ) ),
+				new RWXMaterialTracker( new RWXMaterialManager( textureFolderPath, this.textureExtension, this.maskExtension, this.fflate, this.useBasicMaterial, this.textureColorSpace, this.alphaTest ) ),
 
 			taggedMaterials: {},
 			quadRatioHint: null,

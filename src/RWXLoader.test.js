@@ -2,7 +2,7 @@
  * @author Julien 'Blaxar' Bardagi <blaxar.waldarax@gmail.com>
  */
 
-import { LinearEncoding, sRGBEncoding, TextureLoader, Mesh, Group, Box3, Raycaster, Vector3, MeshPhongMaterial } from 'three';
+import { LinearSRGBColorSpace, SRGBColorSpace, TextureLoader, Mesh, Group, Box3, Raycaster, Vector3, MeshPhongMaterial } from 'three';
 import RWXLoader, { RWXMaterial, RWXMaterialManager, RWXMaterialTracker, LightSampling, GeometrySampling,
 	TextureMode, MaterialMode, TextureAddressMode } from './RWXLoader.js';
 import * as fflate from 'fflate';
@@ -140,13 +140,13 @@ describe( 'RWXLoader', () => {
 
 	} );
 
-	it( 'setTextureEncoding', () => {
+	it( 'setTextureColorSpace', () => {
 
 		let loader = new RWXLoader();
 
-		assert.equal( loader.textureEncoding, sRGBEncoding );
-		assert.strictEqual( loader.setTextureEncoding( LinearEncoding ), loader );
-		assert.equal( loader.textureEncoding, LinearEncoding );
+		assert.equal( loader.textureColorSpace, SRGBColorSpace );
+		assert.strictEqual( loader.setTextureColorSpace( LinearSRGBColorSpace ), loader );
+		assert.equal( loader.textureColorSpace, LinearSRGBColorSpace );
 
 	} );
 

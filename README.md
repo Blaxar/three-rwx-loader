@@ -79,9 +79,9 @@ Set this to `true` to get a single `Mesh` holding everything.
 
   - Set a custom `RWXMaterialManager` to be used by the loader, one will be internally instanciated by default if none is provided.
 
-- `setTextureEncoding( textureEncoding: constant ): this`
+- `setTextureColorSpace( textureColorSpace: constant ): this`
 
-  - Set the *three.js* texture encoding mode used for textures loaded for materials (default is `sRGBEncoding`).
+  - Set the *three.js* texture color space used for textures loaded for materials (default is `SRGBColorSpace`).
 
 - `setEnableTextures( enableTextures: boolean ): this`
 
