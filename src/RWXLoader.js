@@ -468,13 +468,12 @@ function makeThreeMaterial( rwxMaterial, folder, textureExtension = '.jpg', mask
 
 	if ( rwxMaterial.texture == null ) {
 
-		// Assuming sRGB color space for colors in RWX commands, so we need to convert back to linear
-		threeMat.color.set( rwxMaterial.getColorHexValue() ).convertSRGBToLinear();
+		threeMat.color.set( rwxMaterial.getColorHexValue() );
 		threeMat.color.multiplyScalar( brightnessRatio );
 
 	} else {
 
-		threeMat.color.set( 0xffffff ).convertSRGBToLinear();
+		threeMat.color.set( 0xffffff );
 		threeMat.color.multiplyScalar( brightnessRatio );
 
 		applyTextureToMat( threeMat, folder, rwxMaterial.texture, textureExtension, rwxMaterial.mask,
