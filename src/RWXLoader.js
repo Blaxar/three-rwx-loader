@@ -556,7 +556,7 @@ function commitBufferGeometryGroup( ctx ) {
 
 	// Set everything ready for the next group to start
 	ctx.previousMaterialID = ctx.materialTracker.getCurrentMaterialID();
-	ctx.currentBufferGroupFirstFaceID = ctx.currentBufferGroupFirstFaceID + ctx.currentBufferFaceCount * 3;
+	ctx.currentBufferGroupFirstFaceID += ctx.currentBufferFaceCount * 3;
 	ctx.currentBufferFaceCount = 0;
 
 }
@@ -1266,17 +1266,13 @@ function setMaterialRatio( ctx, a, b, c, d = null ) {
 
 		}
 
+	} else if ( ctx.quadRatioHint === null ) {
+
+		ctx.quadRatioHint = ratio;
+
 	} else {
 
-		if ( ctx.quadRatioHint === null ) {
-
-			ctx.quadRatioHint = ratio;
-
-		} else {
-
-			ctx.materialTracker.currentRWXMaterial.ratio = ctx.quadRatioHint;
-
-		}
+		ctx.materialTracker.currentRWXMaterial.ratio = ctx.quadRatioHint;
 
 	}
 
@@ -2116,17 +2112,13 @@ class RWXLoader extends Loader {
 
 					ctx.materialTracker.currentRWXMaterial.texture = null;
 
+				} else if ( textureExtension !== '.jpg' ) {
+
+					ctx.materialTracker.currentRWXMaterial.texture = texture + textureExtension;
+
 				} else {
 
-					if ( textureExtension !== '.jpg' ) {
-
-						ctx.materialTracker.currentRWXMaterial.texture = texture + textureExtension;
-
-					} else {
-
-						ctx.materialTracker.currentRWXMaterial.texture = texture;
-
-					}
+					ctx.materialTracker.currentRWXMaterial.texture = texture;
 
 				}
 
@@ -2343,6 +2335,7 @@ class RWXLoader extends Loader {
 			if ( res != null ) {
 
 				ctx.currentTransform.identity();
+				continue;
 
 			}
 
@@ -2357,6 +2350,17 @@ class RWXLoader extends Loader {
 				} );
 
 				if ( tprops.length == 16 ) {
+
+					// Avoid singular matrices by keeping scale values non-zero as they can cause problems in transformations
+					[ 1, 5, 9 ].forEach( ( index ) => {
+
+						if ( tprops[ index ] == 0.0 ) {
+
+							tprops[ index ] = 1e-3;
+
+						}
+
+					} );
 
 					// Important Note: it seems the AW client always acts as if this element (which is related to the projection plane)
 					// was equal to 1 when it was set 0, hence why we always override this.

@@ -1,6 +1,6 @@
 {
   "name": "three-rwx-loader",
-  "version": "0.12.1",
+  "version": "0.12.2",
   "description": "three.js RWX (AW) loader",
   "type": "module",
   "main": "src/RWXLoader.js",
@@ -11,19 +11,19 @@
     "prepublishOnly": "npm run test && npm run lint && npm run build"
   },
   "devDependencies": {
-    "eslint": "^8.17.0",
+    "eslint": "^8.46.0",
     "eslint-config-mdcs": "^5.0.0",
     "esmify": "^2.1.1",
     "http-server": "^14.1.1",
     "mochify": "^9.2.0",
-    "terser": "^5.14.1"
+    "terser": "^5.19.2"
   },
   "dependencies": {
     "poly2tri": "^1.5.0",
     "three": ">0.152.1"
   },
   "peerDependencies": {
-    "fflate": "^0.7.4"
+    "fflate": ">=0.7.4"
   },
   "repository": {
     "type": "git",
