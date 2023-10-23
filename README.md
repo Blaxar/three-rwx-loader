@@ -105,6 +105,12 @@ Set this to `true` to get a single `Mesh` holding everything.
 
   - `true` by default, meaning: all materials will display their textures in a "fancy" way
 
+- `setCorrectInvalidNormals( correctInvalidNormals: boolean ) : this`
+
+  - Whether or not to correct invalid normals (quads only), this is expensive and seldom required as it mostly happens on ill-formed objects.
+
+  - `false` by default, meaning it's disabled.
+
 ## Testing
 
 ```bash

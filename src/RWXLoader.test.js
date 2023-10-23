@@ -200,6 +200,16 @@ describe( 'RWXLoader', () => {
 
 	} );
 
+	it( 'setCorrectInvalidNormals', () => {
+
+		let loader = new RWXLoader();
+
+		assert.equal( loader.correctInvalidNormals, false );
+		assert.strictEqual( loader.setCorrectInvalidNormals( true ), loader );
+		assert.equal( loader.correctInvalidNormals, true );
+
+	} );
+
 	it( 'RWXMaterial', () => {
 
 		let rwxMat = new RWXMaterial();
