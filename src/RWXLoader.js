@@ -510,6 +510,49 @@ function clearGeometry( ctx ) {
 
 }
 
+function hasCurrentInvalidNormals( ctx, faces ) {
+
+	if ( ctx.currentBufferFaces.length > 0 ) {
+
+		const tmpBufferGeometry = new BufferGeometry();
+
+		const tmpFaces = [];
+		tmpFaces.push( ...ctx.currentBufferFaces, ...faces );
+
+		tmpBufferGeometry.setAttribute( 'position', new BufferAttribute( new Float32Array( ctx.currentBufferVertices ), 3 ) );
+		tmpBufferGeometry.setIndex( tmpFaces );
+		tmpBufferGeometry.computeVertexNormals();
+
+		// Look for normal value issues
+		tmpBufferGeometry.computeVertexNormals();
+		if ( tmpBufferGeometry.hasAttribute( 'normal' ) ) {
+
+			const normals = tmpBufferGeometry.getAttribute( 'normal' ).array;
+			const normalVector = new Vector3();
+
+			for ( let i = 0; i < normals.length; i += 3 ) {
+
+				// Those vertices are not targetted by the provided faces: skip
+				if ( ! faces.includes( i / 3 ) ) continue;
+
+				normalVector.set( normals[ i ], normals[ i + 1 ], normals[ i + 2 ] );
+
+				if ( normalVector.lengthSq() == 0.0 ) {
+
+					return true;//ctx.materialTracker.currentRWXMaterial.lightsampling = LightSampling.FACET;
+
+				}
+
+			}
+
+		}
+
+	}
+
+	return false;
+
+}
+
 function makeMeshToCurrentGroup( ctx ) {
 
 	if ( ctx.currentBufferFaceCount > 0 ) {
@@ -609,10 +652,69 @@ function addQuad( ctx, a, b, c, d ) {
 
 	} else {
 
+		// Evaluate which diagonal we should cut with
+		const vertexA = new Vector3( ctx.currentBufferVertices[ a * 3 ],
+			ctx.currentBufferVertices[ a * 3 + 1 ],
+			ctx.currentBufferVertices[ a * 3 + 2 ] );
+		const vertexB = new Vector3( ctx.currentBufferVertices[ b * 3 ],
+			ctx.currentBufferVertices[ b * 3 + 1 ],
+			ctx.currentBufferVertices[ b * 3 + 2 ] );
+		const vertexC = new Vector3( ctx.currentBufferVertices[ c * 3 ],
+			ctx.currentBufferVertices[ c * 3 + 1 ],
+			ctx.currentBufferVertices[ c * 3 + 2 ] );
+		const vertexD = new Vector3( ctx.currentBufferVertices[ d * 3 ],
+			ctx.currentBufferVertices[ d * 3 + 1 ],
+			ctx.currentBufferVertices[ d * 3 + 2 ] );
+
+		const cutAC = vertexA.distanceToSquared( vertexC ) > vertexB.distanceToSquared( vertexD );
+
 		// Add two new faces
 		ctx.currentBufferFaceCount += 2;
-		ctx.currentBufferFaces.push( a, b, c );
-		ctx.currentBufferFaces.push( a, c, d );
+		const faces = cutAC ? [ a, b, c, a, c, d ] : [ a, b, d, b, c, d ];
+
+		if ( ctx.correctInvalidNormals && hasCurrentInvalidNormals( ctx, faces ) && ctx.materialTracker.currentRWXMaterial != LightSampling.FACET ) {
+
+			// Duplicate vertices to avoid issues
+			const vertexIds = [];
+
+			for ( const id of [ a, b, c, d ] ) {
+
+				vertexIds.push( ctx.currentBufferVertices.length / 3 );
+
+				ctx.currentBufferVertices.push(
+					ctx.currentBufferVertices[ id * 3 ],
+					ctx.currentBufferVertices[ id * 3 + 1 ],
+					ctx.currentBufferVertices[ id * 3 + 2 ]
+				);
+
+				ctx.currentBufferUVs.push(
+					ctx.currentBufferUVs[ id * 2 ],
+					ctx.currentBufferUVs[ id * 2 + 1 ]
+				);
+
+			}
+
+
+
+			if ( cutAC ) {
+
+				ctx.currentBufferFaces.push( vertexIds[ 0 ], vertexIds[ 1 ], vertexIds[ 2 ],
+																	 vertexIds[ 0 ], vertexIds[ 2 ], vertexIds[ 3 ] );
+
+			} else {
+
+				ctx.currentBufferFaces.push( vertexIds[ 0 ], vertexIds[ 1 ], vertexIds[ 3 ],
+																	 vertexIds[ 1 ], vertexIds[ 2 ], vertexIds[ 3 ] );
+
+			}
+
+			ctx.currentBufferGeometry.computeVertexNormals();
+
+		} else {
+
+			ctx.currentBufferFaces.push( ...faces );
+
+		}
 
 	}
 
@@ -1776,6 +1878,7 @@ class RWXLoader extends Loader {
 		this.verboseWarning = false;
 		this.alphaTest = defaultAlphaTest;
 		this.forceTextureFiltering = true;
+		this.correctInvalidNormals = false;
 
 	}
 
@@ -1901,6 +2004,16 @@ class RWXLoader extends Loader {
 
 	}
 
+	// Whether or not to correct invalid normals (quads only), this is expensive and seldom required as it mostly happens on ill-formed objects.
+	// 'false' by default, meaning it's disabled.
+	setCorrectInvalidNormals( correctInvalidNormals ) {
+
+		this.correctInvalidNormals = correctInvalidNormals;
+
+		return this;
+
+	}
+
 	load( rwxFile, onLoad, onProgress, onError ) {
 
 		let scope = this;
@@ -1978,8 +2091,9 @@ class RWXLoader extends Loader {
 
 			forceEarcut: this.forceEarcut,
 			verboseWarning: this.verboseWarning,
-			objectName: this.path + '/' + name
+			objectName: this.path + '/' + name,
 
+			correctInvalidNormals: this.correctInvalidNormals
 		};
 
 		let transformBeforeProto = null;
