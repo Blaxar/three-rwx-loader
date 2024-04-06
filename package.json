@@ -1,6 +1,6 @@
 {
   "name": "three-rwx-loader",
-  "version": "0.12.2",
+  "version": "0.12.3",
   "description": "three.js RWX (AW) loader",
   "type": "module",
   "main": "src/RWXLoader.js",
@@ -11,23 +11,23 @@
     "prepublishOnly": "npm run test && npm run lint && npm run build"
   },
   "devDependencies": {
-    "eslint": "^8.17.0",
+    "eslint": "^8.56.0",
     "eslint-config-mdcs": "^5.0.0",
-    "esmify": "^2.1.1",
+    "esmify": "2.1.1",
     "http-server": "^14.1.1",
     "mochify": "^9.2.0",
-    "terser": "^5.14.1"
+    "terser": "^5.30.3"
   },
   "dependencies": {
     "poly2tri": "^1.5.0",
-    "three": ">0.152.1"
+    "three": ">=0.163.0"
   },
   "peerDependencies": {
-    "fflate": "^0.7.4"
+    "fflate": "^0.8.2"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/Blaxar/three-rwx-loader"
+    "url": "git+https://github.com/Blaxar/three-rwx-loader.git"
   },
   "files": [
     "src/*",
