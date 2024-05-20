@@ -97,17 +97,17 @@ Set this to `true` to get a single `Mesh` holding everything.
 
 - `setAlphaTest( AlphaTest: float ): this`
 
-  - Set the threshold value to use for texture transparency testing (between 0 and 1), 0.2 by default
+  - Set the threshold value to use for texture transparency testing (between 0 and 1), 0.2 by default.
 
 - `setForceTextureFiltering( forceTextureFiltering: boolean ): this`
 
-  - Whether or not to force texture filtering regardless of texture modes
+  - Whether or not to force texture filtering regardless of texture modes.
 
-  - `true` by default, meaning: all materials will display their textures in a "fancy" way
+  - `true` by default, meaning: all materials will display their textures in a "fancy" way.
 
-- `setCorrectInvalidNormals( correctInvalidNormals: boolean ) : this`
+- `setAllowURLs( allowURLs: boolean ): this`
 
-  - Whether or not to correct invalid normals (quads only), this is expensive and seldom required as it mostly happens on ill-formed objects.
+  - Whether or not to allow full URLs for texture and mask paths.
 
   - `false` by default, meaning it's disabled.
 

@@ -210,6 +210,17 @@ describe( 'RWXLoader', () => {
 
 	} );
 
+	it( 'setAllowURLs', () => {
+
+		let loader = new RWXLoader();
+
+		assert.equal( loader.allowURLs, false );
+		assert.strictEqual( loader.setAllowURLs( true ), loader );
+		assert.equal( loader.allowURLs, true );
+
+	} );
+
+
 	it( 'RWXMaterial', () => {
 
 		let rwxMat = new RWXMaterial();

@@ -73,7 +73,8 @@ const glossRatio = 0.1;
 const defaultAlphaTest = 0.2;
 const defaultSurface = [ 0.69, 0.0, 0.0 ]; // Ambience (recommended AW 2.2), Diffusion, Specularity
 
-const extensionRegex = /^.*(\.[^\\]+)$/i;
+const urlRegex = /^https?:\/\/.*$/i;
+const extensionRegex = /^(.*)(\.[^\\]+)$/i;
 const isAlphaExtensionRegex = /^\.(tiff|png|webp|gif)$/i;
 
 // Perform polygon triangulation by projecting vertices on a 2D plane first
@@ -233,31 +234,46 @@ function makeMaskPromise( bmpURI, threeMat, loader, textureColorSpace = LinearSR
 
 function applyTextureToMat( threeMat, folder, textureName, textureExtension = '.jpg', maskName = null,
 	maskExtension = '.zip', fflate = null, loadingPromises = [], textureColorSpace = SRGBColorSpace,
-	textureWrapping = RepeatWrapping, alphaTest = defaultAlphaTest, textureFiltering = true ) {
+	textureWrapping = RepeatWrapping, alphaTest = defaultAlphaTest, textureFiltering = true, allowURLs = true ) {
 
 	let loader = new TextureLoader();
 	let texturePath = null;
 
-	const res = extensionRegex.exec( textureName );
+	const urlRes = urlRegex.exec( textureName );
+	const extRes = extensionRegex.exec( textureName );
 
-	if ( res ) {
+	if ( urlRes ) {
 
-		// If texture.jpg is requested, make sure we don't load texture.jpg.jpg
+		if ( ! allowURLs ) {
 
-		textureExtension = '';
-
-		if ( isAlphaExtensionRegex.test( res[ 1 ] ) ) {
-
-			threeMat.alphaTest = alphaTest;
-			threeMat.transparent = true;
+			console.error( `Full URLs not allowed for texture and mask paths, skipping ${textureName}` );
+			return;
 
 		}
 
-	}
+		texturePath = textureName;
 
-	loadingPromises.push( new Promise( ( resolveTex ) => {
+	}	else {
+
+		// If texture.jpg is requested, make sure we don't load texture.jpg.jpg
+		if ( extRes ) {
+
+			textureExtension = '';
+
+		}
 
 		texturePath = folder + '/' + textureName + textureExtension;
+
+	}
+
+	if ( extRes && isAlphaExtensionRegex.test( extRes[ 2 ] ) ) {
+
+		threeMat.alphaTest = alphaTest;
+		threeMat.transparent = true;
+
+	}
+
+	loadingPromises.push( new Promise( ( resolveTex, rejectTex ) => {
 
 		loader.load( texturePath, ( texture ) => {
 
@@ -287,6 +303,10 @@ function applyTextureToMat( threeMat, folder, textureName, textureExtension = '.
 
 			resolveTex( texture );
 
+		}, null, ( e ) => {
+
+			rejectTex( e );
+
 		} );
 
 	} ) );
@@ -296,11 +316,38 @@ function applyTextureToMat( threeMat, folder, textureName, textureExtension = '.
 		threeMat.alphaTest = alphaTest;
 		threeMat.transparent = true;
 
-		if ( maskExtension == '.zip' && fflate != null ) {
+		const urlRes = urlRegex.exec( maskName );
+		const extRes = extensionRegex.exec( maskName );
 
-			// We try to extract the bmp mask from the archive
-			const maskBaseName = maskName;
-			const zipPath = folder + '/' + maskBaseName + maskExtension;
+		if ( extRes ) {
+
+			maskExtension = extRes[ 2 ];
+
+		}
+
+		// We try to extract the bmp mask from the archive
+		let maskBaseName = extRes ? extRes[ 1 ] : maskName;
+
+		if ( urlRes ) {
+
+			if ( ! allowURLs ) {
+
+				console.error( `Full URLs not allowed for texture and mask paths, skipping ${maskName}` );
+				return;
+
+			}
+
+			// Trim everything before the filename in the URL
+			maskBaseName = maskBaseName.slice( maskBaseName.lastIndexOf( '/' ) + 1 );
+
+		}
+
+		if ( maskExtension.toLowerCase() == '.zip' && fflate != null ) {
+
+			// If mask path is a full URL: use it verbatim;
+			// Otherwise, if it's a single name: do not append the extension to it if
+			// it's already embedded in the original string.
+			const zipPath = urlRes ? maskName : folder + '/' + maskBaseName + maskExtension;
 
 			loadingPromises.push( new Promise( ( resolve, reject ) => {
 
@@ -310,21 +357,21 @@ function applyTextureToMat( threeMat, folder, textureName, textureExtension = '.
 				// We load the mask asynchronously using fflate (if available)
 				zipLoader.load( zipPath, ( data ) => {
 
-		      const zipData = fflate.unzipSync( new Uint8Array( data ) );
+					const zipData = fflate.unzipSync( new Uint8Array( data ) );
 					let filename = null;
 
 					// Find the bmp file within the archive, we need to be case insensitive
-				  for ( const key of Object.keys( zipData ) ) {
+					for ( const key of Object.keys( zipData ) ) {
 
-					  if ( key.toLowerCase() == ( maskBaseName.toLowerCase() + '.bmp' ) ) {
+						if ( key.toLowerCase() == ( maskBaseName.toLowerCase() + '.bmp' ) ) {
 
 							// Found the file
-						  filename = key;
+							filename = key;
 							break;
 
-					  }
+						}
 
-				  }
+					}
 
 					if ( ! filename ) {
 
@@ -336,17 +383,17 @@ function applyTextureToMat( threeMat, folder, textureName, textureExtension = '.
 					const buffer = zipData[ filename ];
 
 					// Load the bmp image into a data uri string
-				  let bmpURI = 'data:image/bmp;base64,';
-				  const chunkSize = 4056;
-				  let dataStr = '';
+					let bmpURI = 'data:image/bmp;base64,';
+					const chunkSize = 4056;
+					let dataStr = '';
 
-				  // Chunking the buffer to maximize browser compatibility and avoid exceeding some size limit
-				  // during string creation when using 'String.fromCharCode'
-				  for ( let i = 0; i < buffer.length; i += chunkSize ) {
+					// Chunking the buffer to maximize browser compatibility and avoid exceeding some size limit
+					// during string creation when using 'String.fromCharCode'
+					for ( let i = 0; i < buffer.length; i += chunkSize ) {
 
-					  dataStr = dataStr.concat( String.fromCharCode.apply( null, new Uint16Array( buffer.slice( i, i + chunkSize ) ) ) );
+						dataStr = dataStr.concat( String.fromCharCode.apply( null, new Uint16Array( buffer.slice( i, i + chunkSize ) ) ) );
 
-				  }
+					}
 
 					bmpURI = bmpURI.concat( btoa( dataStr ) );
 
@@ -354,11 +401,16 @@ function applyTextureToMat( threeMat, folder, textureName, textureExtension = '.
 
 						resolve( mask );
 
-					} );
+					} )
+						.catch( ( e ) => {
 
-				}, null, ( err ) => {
+							reject( e );
 
-					reject( err );
+						} );
+
+				}, null, ( e ) => {
+
+					reject( e );
 
 				} );
 
@@ -366,7 +418,7 @@ function applyTextureToMat( threeMat, folder, textureName, textureExtension = '.
 
 		} else if ( maskExtension != '.zip' ) {
 
-			const bmpPath = folder + '/' + maskName + maskExtension;
+			const bmpPath = urlRes ? maskName : folder + '/' + maskBaseName + maskExtension;
 			loadingPromises.push( makeMaskPromise( bmpPath, threeMat, loader, LinearSRGBColorSpace, textureWrapping, textureFiltering ) );
 
 		}
@@ -376,7 +428,8 @@ function applyTextureToMat( threeMat, folder, textureName, textureExtension = '.
 }
 
 function makeThreeMaterial( rwxMaterial, folder, textureExtension = '.jpg', maskExtension = '.zip',
-	fflate = null, useBasicMaterial = false, textureColorSpace = SRGBColorSpace, alphaTest = defaultAlphaTest ) {
+	fflate = null, useBasicMaterial = false, textureColorSpace = SRGBColorSpace, alphaTest = defaultAlphaTest,
+	allowURLs = true ) {
 
 	let materialDict = { name: rwxMaterial.getMatSignature() };
 
@@ -477,7 +530,8 @@ function makeThreeMaterial( rwxMaterial, folder, textureExtension = '.jpg', mask
 		threeMat.color.multiplyScalar( brightnessRatio );
 
 		applyTextureToMat( threeMat, folder, rwxMaterial.texture, textureExtension, rwxMaterial.mask,
-			maskExtension, fflate, loadingPromises, textureColorSpace, textureWrapping, alphaTest, textureFiltering );
+			maskExtension, fflate, loadingPromises, textureColorSpace, textureWrapping, alphaTest, textureFiltering,
+			allowURLs );
 
 	}
 
@@ -539,7 +593,7 @@ function hasCurrentInvalidNormals( ctx, faces ) {
 
 				if ( normalVector.lengthSq() == 0.0 ) {
 
-					return true;//ctx.materialTracker.currentRWXMaterial.lightsampling = LightSampling.FACET;
+					return true; // ctx.materialTracker.currentRWXMaterial.lightsampling = LightSampling.FACET;
 
 				}
 
@@ -632,7 +686,7 @@ function addQuad( ctx, a, b, c, d ) {
 		// by only rendering the outter edges
 		const tmpBufferGeometry = new BufferGeometry();
 
-	  tmpBufferGeometry.setAttribute( 'position', new BufferAttribute( new Float32Array( [
+		tmpBufferGeometry.setAttribute( 'position', new BufferAttribute( new Float32Array( [
 
 			ctx.currentBufferVertices[ a * 3 ], ctx.currentBufferVertices[ a * 3 + 1 ], ctx.currentBufferVertices[ a * 3 + 2 ],
 			ctx.currentBufferVertices[ b * 3 ], ctx.currentBufferVertices[ b * 3 + 1 ], ctx.currentBufferVertices[ b * 3 + 2 ],
@@ -830,11 +884,11 @@ function addBlock( ctx, w, h, d ) {
 
 	// 6 squared faces to make a block, each made of 2 triangles (so 12 in total)
 	bufferGeometry.setIndex( [ 0, 3, 1, 1, 3, 2,
-	                           0, 4, 3, 3, 4, 7,
-	                           3, 6, 2, 3, 7, 6,
-	                           6, 7, 5, 5, 7, 4,
-	                           1, 5, 0, 0, 5, 4,
-	                           2, 5, 1, 6, 5, 2 ] );
+														 0, 4, 3, 3, 4, 7,
+														 3, 6, 2, 3, 7, 6,
+														 6, 7, 5, 5, 7, 4,
+														 1, 5, 0, 0, 5, 4,
+														 2, 5, 1, 6, 5, 2 ] );
 
 	// For the sake of having every mesh with the same internal structure,
 	// we create a geometry group for the material
@@ -1556,7 +1610,7 @@ class RWXMaterial {
 
 	constructor() {
 
-	  // Material related properties start here
+		// Material related properties start here
 		this.color = [ 0.0, 0.0, 0.0 ]; // Red, Green, Blue
 		this.surface = defaultSurface.slice( 0, 3 );
 		this.opacity = 1.0;
@@ -1637,7 +1691,8 @@ class RWXMaterialManager {
 
 	constructor( folder, textureExtension = '.jpg', maskExtension =
 	'.zip', fflate = null, useBasicMaterial = false,
-	textureColorSpace = SRGBColorSpace, alphaTest = defaultAlphaTest ) {
+	textureColorSpace = SRGBColorSpace, alphaTest = defaultAlphaTest,
+	allowURLs = false ) {
 
 		this.threeMaterialMap = new Map();
 
@@ -1648,6 +1703,7 @@ class RWXMaterialManager {
 		this.useBasicMaterial = useBasicMaterial;
 		this.textureColorSpace = textureColorSpace;
 		this.alphaTest = alphaTest;
+		this.allowURLs = allowURLs;
 
 	}
 
@@ -1658,7 +1714,8 @@ class RWXMaterialManager {
 
 		const threeMaterial = makeThreeMaterial( newRWXMaterial,
 			this.folder, this.textureExtension, this.maskExtension, this.fflate,
-			this.useBasicMaterial, this.textureColorSpace, this.alphaTest );
+			this.useBasicMaterial, this.textureColorSpace, this.alphaTest,
+			this.allowURLs );
 		threeMaterial.signature = finalSignature;
 
 		this.threeMaterialMap.set( finalSignature, threeMaterial );
@@ -1780,7 +1837,7 @@ class RWXMaterialTracker {
 
 	getCurrentMaterial() {
 
-		  return this.currentMaterialList[ this.getCurrentMaterialID() ];
+		return this.currentMaterialList[ this.getCurrentMaterialID() ];
 
 	}
 
@@ -1835,7 +1892,7 @@ class RWXLoader extends Loader {
 		this.polygonRegex = /^ *(polygon|polygonext)( +[0-9]+)(( +[0-9]+)+)( +tag +([0-9]+))?.*$/i;
 		this.quadRegex = /^ *(quad|quadext)(( +([0-9]+)){4})( +tag +([0-9]+))?.*$/i;
 		this.triangleRegex = /^ *(triangle|triangleext)(( +([0-9]+)){3})( +tag +([0-9]+))?.*$/i;
-		this.textureRegex = /^ *(texture) +([A-Za-z0-9_\-]+)*(\.[A-Za-z]+)? *(mask *([A-Za-z0-9_\-]+))?.*$/i;
+		this.textureRegex = /^ *(texture) +([A-Za-z0-9_\-\/:\.]+)* *(mask *([A-Za-z0-9_\-\/:\.]+))?.*$/i;
 		this.colorRegex = /^ *(color)(( +[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)(e[-+][0-9]+)?){3}).*$/i;
 		this.opacityRegex = /^ *(opacity)( +[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)(e[-+][0-9]+)?).*$/i;
 		this.identityRegex = /^ *(identity) *$/i;
@@ -1879,6 +1936,7 @@ class RWXLoader extends Loader {
 		this.alphaTest = defaultAlphaTest;
 		this.forceTextureFiltering = true;
 		this.correctInvalidNormals = false;
+		this.allowURLs = false;
 
 	}
 
@@ -2014,6 +2072,16 @@ class RWXLoader extends Loader {
 
 	}
 
+	// Whether or not to allow full URLs for texture and mask paths.
+	// 'false' by default, meaning it's disabled.
+	setAllowURLs( allowURLs ) {
+
+		this.allowURLs = allowURLs;
+
+		return this;
+
+	}
+
 	load( rwxFile, onLoad, onProgress, onError ) {
 
 		let scope = this;
@@ -2083,7 +2151,7 @@ class RWXLoader extends Loader {
 			loadingPromises: [],
 
 			materialTracker: this.rwxMaterialManager !== null ? new RWXMaterialTracker( this.rwxMaterialManager ) :
-				new RWXMaterialTracker( new RWXMaterialManager( textureFolderPath, this.textureExtension, this.maskExtension, this.fflate, this.useBasicMaterial, this.textureColorSpace, this.alphaTest ) ),
+				new RWXMaterialTracker( new RWXMaterialManager( textureFolderPath, this.textureExtension, this.maskExtension, this.fflate, this.useBasicMaterial, this.textureColorSpace, this.alphaTest, this.allowURLs ) ),
 
 			taggedMaterials: {},
 			quadRatioHint: null,
@@ -2223,8 +2291,6 @@ class RWXLoader extends Loader {
 			res = this.textureRegex.exec( line );
 			if ( this.enableTextures && res != null ) {
 
-				const textureExtension = res[ 3 ] != null ? res[ 3 ].toLowerCase() : '.jpg';
-
 				const texture = res[ 2 ].toLowerCase();
 				if ( texture == 'null' ) {
 
@@ -2232,21 +2298,13 @@ class RWXLoader extends Loader {
 
 				} else {
 
-					if ( textureExtension !== '.jpg' ) {
-
-						ctx.materialTracker.currentRWXMaterial.texture = texture + textureExtension;
-
-					} else {
-
-						ctx.materialTracker.currentRWXMaterial.texture = texture;
-
-					}
+					ctx.materialTracker.currentRWXMaterial.texture = texture;
 
 				}
 
-				if ( res[ 4 ] !== undefined ) {
+				if ( res[ 3 ] !== undefined ) {
 
-					ctx.materialTracker.currentRWXMaterial.mask = res[ 5 ];
+					ctx.materialTracker.currentRWXMaterial.mask = res[ 4 ];
 
 				} else {
 
@@ -2352,7 +2410,7 @@ class RWXLoader extends Loader {
 
 			} else {
 
-			  ctx.quadRatioHint = null;
+				ctx.quadRatioHint = null;
 
 			}
 
@@ -2679,7 +2737,7 @@ class RWXLoader extends Loader {
 						// Do not push the same texture mode twice
 						if ( ! ctx.materialTracker.currentRWXMaterial.texturemodes.includes( TextureMode[ tm ] ) ) {
 
-						  ctx.materialTracker.currentRWXMaterial.texturemodes.push( TextureMode[ tm ] );
+							ctx.materialTracker.currentRWXMaterial.texturemodes.push( TextureMode[ tm ] );
 
 						}
 
@@ -2725,7 +2783,7 @@ class RWXLoader extends Loader {
 				// Cannot remove Filter mode when forcing texture filtering
 				if ( this.forceTextureFiltering && TextureMode[ tm ] === TextureMode.FILTER ) continue;
 
-			  const id = ctx.materialTracker.currentRWXMaterial.texturemodes.indexOf( TextureMode[ tm ] );
+				const id = ctx.materialTracker.currentRWXMaterial.texturemodes.indexOf( TextureMode[ tm ] );
 
 				if ( id >= 0 ) {
 
@@ -2893,4 +2951,5 @@ class RWXLoader extends Loader {
 
 export default RWXLoader;
 export { RWXMaterial, RWXMaterialManager, RWXMaterialTracker, makeThreeMaterial, makeMaskPromise, applyTextureToMat,
-	LightSampling, GeometrySampling, TextureMode, MaterialMode, TextureAddressMode, signTag, pictureTag, flattenGroup };
+	LightSampling, GeometrySampling, TextureMode, MaterialMode, TextureAddressMode, signTag, pictureTag, flattenGroup,
+	defaultAlphaTest };
