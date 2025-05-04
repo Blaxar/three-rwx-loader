@@ -233,7 +233,7 @@ function makeMaskPromise( bmpURI, threeMat, loader, textureColorSpace = LinearSR
 }
 
 function applyTextureToMat( threeMat, folder, textureName, textureExtension = '.jpg', maskName = null,
-	maskExtension = '.zip', fflate = null, loadingPromises = [], textureColorSpace = SRGBColorSpace,
+	maskExtension = '.zip', specularName = null, normalName = null, fflate = null, loadingPromises = [], textureColorSpace = SRGBColorSpace,
 	textureWrapping = RepeatWrapping, alphaTest = defaultAlphaTest, textureFiltering = true, allowURLs = true ) {
 
 	let loader = new TextureLoader();
@@ -425,6 +425,52 @@ function applyTextureToMat( threeMat, folder, textureName, textureExtension = '.
 
 	}
 
+	// Load normal map
+	if ( normalName != null ) {
+
+		const urlRes = urlRegex.exec( normalName );
+		const normalPath = urlRes ? normalName : folder + '/' + normalName + textureExtension;
+
+		loadingPromises.push( new Promise( ( resolve, reject ) => {
+
+			loader.load( normalPath, ( normalMap ) => {
+
+				normalMap.wrapS = textureWrapping;
+				normalMap.wrapT = textureWrapping;
+				threeMat.normalMap = normalMap;
+				threeMat.needsUpdate = true;
+
+				resolve( normalMap );
+
+		  }, null, reject );
+
+		} ) );
+
+	}
+
+	// Load specular map
+	if ( specularName != null ) {
+
+		const urlRes = urlRegex.exec( specularName );
+		const specularPath = urlRes ? specularName : folder + '/' + specularName + textureExtension;
+
+		loadingPromises.push( new Promise( ( resolve, reject ) => {
+
+			loader.load( specularPath, ( specularMap ) => {
+
+				specularMap.wrapS = textureWrapping;
+				specularMap.wrapT = textureWrapping;
+				threeMat.specularMap = specularMap;
+				threeMat.needsUpdate = true;
+
+				resolve( specularMap );
+
+			}, null, reject );
+
+		} ) );
+
+	}
+
 }
 
 function makeThreeMaterial( rwxMaterial, folder, textureExtension = '.jpg', maskExtension = '.zip',
@@ -530,7 +576,7 @@ function makeThreeMaterial( rwxMaterial, folder, textureExtension = '.jpg', mask
 		threeMat.color.multiplyScalar( brightnessRatio );
 
 		applyTextureToMat( threeMat, folder, rwxMaterial.texture, textureExtension, rwxMaterial.mask,
-			maskExtension, fflate, loadingPromises, textureColorSpace, textureWrapping, alphaTest, textureFiltering,
+			maskExtension, rwxMaterial.specular, rwxMaterial.normal, fflate, loadingPromises, textureColorSpace, textureWrapping, alphaTest, textureFiltering,
 			allowURLs );
 
 	}
@@ -1624,6 +1670,8 @@ class RWXMaterial {
 		this.materialmode = MaterialMode.NULL; // Neither NONE nor DOUBLE: we only render one side of the polygon
 		this.texture = null;
 		this.mask = null;
+		this.normalMap = null;
+		this.specularMap = null;
 		this.textureaddressmode = TextureAddressMode.WRAP;
 		this.collision = true;
 		// End of material related properties
@@ -1672,6 +1720,8 @@ class RWXMaterial {
 		const materialMode = this.materialmode.toString();
 		const texture = this.texture === null ? '' : this.texture;
 		const mask = this.mask === null ? '' : this.mask;
+		const normal = this.normalMap === null ? '' : this.normalMap;
+		const specular = this.specularMap === null ? '' : this.specularMap;
 		const textureAddressMode = this.textureaddressmode.toString();
 
 		const collision = this.collision.toString();
@@ -1680,7 +1730,7 @@ class RWXMaterial {
 		const ratio = this.ratio.toFixed( 2 );
 
 		return `${color}_${surface}_${opacity}_${lightSampling}_${geometrySampling}_${textureMode}_${materialMode}` +
-			`_${texture}_${mask}_${textureAddressMode}_${collision}_${tag}_${ratio}`;
+      `_${texture}_${mask}_${specular}_${normal}_${textureAddressMode}_${collision}_${tag}_${ratio}`;
 
 	}
 
@@ -1892,7 +1942,7 @@ class RWXLoader extends Loader {
 		this.polygonRegex = /^ *(polygon|polygonext)( +[0-9]+)(( +[0-9]+)+)( +tag +([0-9]+))?.*$/i;
 		this.quadRegex = /^ *(quad|quadext)(( +([0-9]+)){4})( +tag +([0-9]+))?.*$/i;
 		this.triangleRegex = /^ *(triangle|triangleext)(( +([0-9]+)){3})( +tag +([0-9]+))?.*$/i;
-		this.textureRegex = /^ *(texture) +([A-Za-z0-9_\-\/:\.]+)* *(mask *([A-Za-z0-9_\-\/:\.]+))?.*$/i;
+		this.textureRegex = /^ *texture +(?<texture>[A-Za-z0-9_\-\/:.]+)(?: +(?<rest>.*))?$/i;
 		this.colorRegex = /^ *(color)(( +[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)(e[-+][0-9]+)?){3}).*$/i;
 		this.opacityRegex = /^ *(opacity)( +[+-]?([0-9]+([.][0-9]*)?|[.][0-9]+)(e[-+][0-9]+)?).*$/i;
 		this.identityRegex = /^ *(identity) *$/i;
@@ -2289,10 +2339,12 @@ class RWXLoader extends Loader {
 			}
 
 			res = this.textureRegex.exec( line );
+
 			if ( this.enableTextures && res != null ) {
 
-				const texture = res[ 2 ].toLowerCase();
-				if ( texture == 'null' ) {
+				const texture = res.groups.texture?.toLowerCase();
+
+				if ( texture === 'null' ) {
 
 					ctx.materialTracker.currentRWXMaterial.texture = null;
 
@@ -2302,19 +2354,29 @@ class RWXLoader extends Loader {
 
 				}
 
-				if ( res[ 3 ] !== undefined ) {
+				ctx.materialTracker.currentRWXMaterial.mask = null;
+				ctx.materialTracker.currentRWXMaterial.normalMap = null;
+				ctx.materialTracker.currentRWXMaterial.specularMap = null;
 
-					ctx.materialTracker.currentRWXMaterial.mask = res[ 4 ];
+				// Parse the remaining optional attributes from the rest
+				const rest = res.groups.rest || '';
+				const attrRegex = /\b(mask|normal|specular)\s+([A-Za-z0-9_\-\/:.]+)/gi;
 
-				} else {
+				let attrMatch;
 
-					ctx.materialTracker.currentRWXMaterial.mask = null;
+				while ( ( attrMatch = attrRegex.exec( rest ) ) !== null ) {
+
+					const key = attrMatch[ 1 ].toLowerCase();
+					const value = attrMatch[ 2 ];
+
+					ctx.materialTracker.currentRWXMaterial[ key ] = value;
 
 				}
 
 				continue;
 
 			}
+
 
 			res = this.triangleRegex.exec( line );
 			if ( res != null ) {
