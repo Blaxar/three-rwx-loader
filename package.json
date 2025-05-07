@@ -1,11 +1,11 @@
 {
   "name": "three-rwx-loader",
-  "version": "0.13.0",
+  "version": "0.13.1",
   "description": "three.js RWX (AW) loader",
   "type": "module",
   "main": "src/RWXLoader.js",
   "scripts": {
-    "build": "terser src/RWXLoader.js --compress --mangle --module > build/RWXLoader.min.js",
+    "build": "mkdir -p build && terser src/RWXLoader.js --compress --mangle --module > build/RWXLoader.min.js",
     "test": "src/run-tests.sh",
     "lint": "eslint src/RWXLoader.js",
     "prepublishOnly": "npm run test && npm run lint && npm run build"

@@ -442,7 +442,7 @@ function applyTextureToMat( threeMat, folder, textureName, textureExtension = '.
 
 				resolve( normalMap );
 
-		  }, null, reject );
+			}, null, reject );
 
 		} ) );
 
@@ -572,7 +572,7 @@ function makeThreeMaterial( rwxMaterial, folder, textureExtension = '.jpg', mask
 
 	} else {
 
-		threeMat.color.set( 0xffffff );
+		threeMat.color.set( rwxMaterial.tint ? rwxMaterial.getColorHexValue() : 0xffffff );
 		threeMat.color.multiplyScalar( brightnessRatio );
 
 		applyTextureToMat( threeMat, folder, rwxMaterial.texture, textureExtension, rwxMaterial.mask,
@@ -1669,6 +1669,7 @@ class RWXMaterial {
 		]; // There's possibly more than one mode enabled at a time (hence why we use an array)
 		this.materialmode = MaterialMode.NULL; // Neither NONE nor DOUBLE: we only render one side of the polygon
 		this.texture = null;
+		this.tint = false;
 		this.mask = null;
 		this.normalMap = null;
 		this.specularMap = null;
@@ -1730,7 +1731,7 @@ class RWXMaterial {
 		const ratio = this.ratio.toFixed( 2 );
 
 		return `${color}_${surface}_${opacity}_${lightSampling}_${geometrySampling}_${textureMode}_${materialMode}` +
-      `_${texture}_${mask}_${specular}_${normal}_${textureAddressMode}_${collision}_${tag}_${ratio}`;
+			`_${texture}_${this.tint}_${mask}_${specular}_${normal}_${textureAddressMode}_${collision}_${tag}_${ratio}`;
 
 	}
 
@@ -2546,6 +2547,7 @@ class RWXLoader extends Loader {
 			}
 
 			res = this.colorRegex.exec( line );
+
 			if ( res != null ) {
 
 				let cprops = [];

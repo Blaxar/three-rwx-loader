@@ -242,13 +242,14 @@ describe( 'RWXLoader', () => {
 		assert.equal( rwxMat.texturemodes[ 2 ], TextureMode.FILTER );
 		assert.equal( rwxMat.materialmode, MaterialMode.NULL );
 		assert.equal( rwxMat.texture, null );
+		assert.equal( rwxMat.tint, false );
 		assert.equal( rwxMat.mask, null );
 		assert.equal( rwxMat.specularMap, null );
 		assert.equal( rwxMat.normalMap, null );
 		assert.equal( rwxMat.textureaddressmode, TextureAddressMode.WRAP );
 		assert.equal( rwxMat.tag, 0 );
 
-		assert.equal( rwxMat.getMatSignature(), '0.0000.0000.000_0.6900.0000.000_1.000_1_3_123_1_____0_true_0_1.00' );
+		assert.equal( rwxMat.getMatSignature(), '0.0000.0000.000_0.6900.0000.000_1.000_1_3_123_1__false____0_true_0_1.00' );
 
 		const clonedMat = rwxMat.clone();
 
@@ -257,7 +258,7 @@ describe( 'RWXLoader', () => {
 		rwxMat.tag = 100;
 		rwxMat.ratio = 0.5;
 
-		assert.equal( rwxMat.getMatSignature(), '0.0000.0000.000_0.6900.0000.000_1.000_1_3_123_1_wood1_wood1m___0_true_100_0.50' );
+		assert.equal( rwxMat.getMatSignature(), '0.0000.0000.000_0.6900.0000.000_1.000_1_3_123_1_wood1_false_wood1m___0_true_100_0.50' );
 
 		rwxMat.color[ 0 ] = 1;
 		rwxMat.color[ 1 ] = 2;
@@ -271,15 +272,16 @@ describe( 'RWXLoader', () => {
 		rwxMat.texturemodes.pop();
 		rwxMat.materialmode = MaterialMode.NONE;
 		rwxMat.texture = 'texture1';
+		rwxMat.tint = true;
 		rwxMat.mask = 'texture1m';
 		rwxMat.textureaddressmode = TextureAddressMode.CLAMP;
 		rwxMat.collision = false;
 
 		rwxMat.normalMap = 'texture1-n';
-		assert.equal( rwxMat.getMatSignature(), '1.0002.0003.000_4.0005.0006.000_0.500_2_2_12_0_texture1_texture1m__texture1-n_2_false_100_0.50' );
+		assert.equal( rwxMat.getMatSignature(), '1.0002.0003.000_4.0005.0006.000_0.500_2_2_12_0_texture1_true_texture1m__texture1-n_2_false_100_0.50' );
 
 		rwxMat.specularMap = 'texture1-s';
-		assert.equal( rwxMat.getMatSignature(), '1.0002.0003.000_4.0005.0006.000_0.500_2_2_12_0_texture1_texture1m_texture1-s_texture1-n_2_false_100_0.50' );
+		assert.equal( rwxMat.getMatSignature(), '1.0002.0003.000_4.0005.0006.000_0.500_2_2_12_0_texture1_true_texture1m_texture1-s_texture1-n_2_false_100_0.50' );
 
 		// We ensure that everything was copied, down to the methods themselves
 		assert.equal( typeof clonedMat.constructor, 'function' );
@@ -304,6 +306,7 @@ describe( 'RWXLoader', () => {
 		assert.equal( clonedMat.texturemodes[ 2 ], TextureMode.FILTER );
 		assert.equal( clonedMat.materialmode, MaterialMode.NULL );
 		assert.equal( clonedMat.texture, null);
+		assert.equal( clonedMat.tint, false);
 		assert.equal( clonedMat.mask, null);
 		assert.equal( clonedMat.textureaddressmode, TextureAddressMode.WRAP );
 		assert.equal( clonedMat.tag, 0 );
@@ -485,7 +488,7 @@ describe( 'RWXLoader', () => {
 		const foundClumpTags = [];
 		const foundMaterialTags = [];
 
-    // Ready all the casters
+		// Ready all the casters
 		const xCasterLeftFront = new Raycaster( new Vector3( -5, 0, -0.5 ), new Vector3( 1, 0, 0 ), 0, 5 );
 		const xCasterLeftBack = new Raycaster( new Vector3( 5, 0, -0.5 ), new Vector3( -1, 0, 0 ), 0, 5 );
 		const xCasterRightFront = new Raycaster( new Vector3( -5, 0, 0.5 ), new Vector3( 1, 0, 0 ), 0, 5 );
@@ -499,7 +502,7 @@ describe( 'RWXLoader', () => {
 		const zCasterRightFront = new Raycaster( new Vector3( 0.5, 0, -5 ), new Vector3( 0, 0, 1 ), 0, 5 );
 		const zCasterRightBack = new Raycaster( new Vector3( 0.5, 0, 5 ), new Vector3( 0, 0, -1 ), 0, 5 );
 
-    let xCasterLeftCount = 0;
+		let xCasterLeftCount = 0;
 		let xCasterRightCount = 0;
 		let yCasterLeftCount = 0;
 		let yCasterRightCount = 0;
