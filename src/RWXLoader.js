@@ -77,6 +77,9 @@ const urlRegex = /^https?:\/\/.*$/i;
 const extensionRegex = /^(.*)(\.[^\\]+)$/i;
 const isAlphaExtensionRegex = /^\.(tiff|png|webp|gif)$/i;
 
+const firstClumpName = 'rwx-first-clump';
+const scaleGroupName = 'rwx-scale-group';
+
 // Perform polygon triangulation by projecting vertices on a 2D plane first
 function triangulateFaces( vertices, uvs, loop, objectName, forceEarcut = false, verboseWarning = false ) {
 
@@ -2217,16 +2220,22 @@ class RWXLoader extends Loader {
 
 		let transformBeforeProto = null;
 		let groupBeforeProto = null;
-
-		const scale_ten = new Matrix4();
-		scale_ten.makeScale( 10.0, 10.0, 10.0 );
+		let firstClumpStarted = false;
 
 		const lines = str.split( /[\n\r]+/g );
 
 		// Ready root object group
 		ctx.rootGroup = new Group();
 		ctx.rootGroup.userData.rwx = { axisAlignment: 'none' };
-		ctx.currentGroup = ctx.rootGroup;
+
+		// Ready scale object group to take the decameter unit into account
+		const scaleGroup = new Group();
+		scaleGroup.scale.set( 10.0, 10.0, 10.0 );
+		scaleGroup.updateMatrix();
+		ctx.rootGroup.add( scaleGroup );
+		scaleGroup.name = scaleGroupName;
+
+		ctx.currentGroup = scaleGroup;
 		ctx.materialStack.push( ctx.materialTracker.currentMaterial );
 
 		for ( let i = 0, l = lines.length; i < l; i ++ ) {
@@ -2252,6 +2261,14 @@ class RWXLoader extends Loader {
 
 				pushCurrentGroup( ctx );
 				pushCurrentMaterial( ctx );
+
+				if ( ! firstClumpStarted ) {
+
+					// This clump is the actual root of the topology
+					ctx.currentGroup.name = firstClumpName;
+					firstClumpStarted = true;
+
+				}
 
 				continue;
 
@@ -2990,9 +3007,6 @@ class RWXLoader extends Loader {
 
 		ctx.materialTracker.clearCurrentMaterialList();
 
-		// We're done, return the root group to get the whole object, we take the decameter unit into account
-		ctx.rootGroup.applyMatrix4( scale_ten );
-
 		if ( this.waitFullLoad ) {
 
 			// Wait all mask futures before returning loaded object
@@ -3016,4 +3030,4 @@ class RWXLoader extends Loader {
 export default RWXLoader;
 export { RWXMaterial, RWXMaterialManager, RWXMaterialTracker, makeThreeMaterial, makeMaskPromise, applyTextureToMat,
 	LightSampling, GeometrySampling, TextureMode, MaterialMode, TextureAddressMode, signTag, pictureTag, flattenGroup,
-	defaultAlphaTest };
+	defaultAlphaTest, firstClumpName, scaleGroupName };

@@ -4,7 +4,7 @@
 
 import { LinearSRGBColorSpace, SRGBColorSpace, TextureLoader, Mesh, Group, Box3, Raycaster, Vector3, MeshPhongMaterial } from 'three';
 import RWXLoader, { RWXMaterial, RWXMaterialManager, RWXMaterialTracker, LightSampling, GeometrySampling,
-	TextureMode, MaterialMode, TextureAddressMode } from './RWXLoader.js';
+	TextureMode, MaterialMode, TextureAddressMode, scaleGroupName, firstClumpName } from './RWXLoader.js';
 import * as fflate from 'fflate';
 import { createServer } from 'http';
 import fs from 'fs';
@@ -510,6 +510,11 @@ describe( 'RWXLoader', () => {
 		let zCasterRightCount = 0;
 
 		assert.ok( rwx instanceof Group );
+		assert.equal( rwx.children[0].name, scaleGroupName );
+		assert.equal( rwx.children[0].scale.x, 10.0 );
+		assert.equal( rwx.children[0].scale.y, 10.0 );
+		assert.equal( rwx.children[0].scale.z, 10.0 );
+		assert.equal( rwx.children[0].children[0].name, firstClumpName );
 
 		const boundingBox = new Box3();
 		boundingBox.setFromObject( rwx );
@@ -559,7 +564,7 @@ describe( 'RWXLoader', () => {
 		} );
 
 		assert.equal( nbMeshes, 6 );
-		assert.equal( nbGroups, 10 ); // There are 6 declared clumps and 4 protoinstance statements
+		assert.equal( nbGroups, 11 ); // There are 6 declared clumps, 4 protoinstance statements and the scale group
 		assert.equal( nbMaxChildrenInGroup, 5 ); // 4 clumps and 1 protoinstance
 		assert.equal( nbMaterials, 7 );
 		assert.equal( nbVertexCoords, 6 * 4 * 3 ); // 6 faces, 4 vertices each, 3 coordinates each
