@@ -673,9 +673,9 @@ function makeMeshToCurrentGroup( ctx ) {
 		ctx.currentBufferGeometry.uvsNeedUpdate = true;
 		ctx.currentBufferGeometry.computeVertexNormals();
 
-		ctx.loadingPromises = ctx.loadingPromises.concat( ctx.materialTracker.getCommitedMaterialList().map( res => res.loadingPromises ) );
+		ctx.loadingPromises = ctx.loadingPromises.concat( ctx.materialTracker.getCommittedMaterialList().map( res => res.loadingPromises ) );
 
-		const mesh = new Mesh( ctx.currentBufferGeometry, ctx.materialTracker.getCommitedMaterialList().map( res => res.threeMat ) );
+		const mesh = new Mesh( ctx.currentBufferGeometry, ctx.materialTracker.getCommittedMaterialList().map( res => res.threeMat ) );
 
 		/* Keep track of tagged materials for this mesh */
 		mesh.userData.taggedMaterials = ctx.taggedMaterials;
@@ -1612,7 +1612,7 @@ function mergeGeometryRecursive( group, ctx, transform = group.matrix ) {
 
 			} );
 
-		} else if ( child instanceof Group ) {
+		} else if ( child instanceof Group && ctx.groupFilter( child ) ) {
 
 			/* Recursive case */
 			mergeGeometryRecursive( child, ctx, localTransform );
@@ -1623,7 +1623,7 @@ function mergeGeometryRecursive( group, ctx, transform = group.matrix ) {
 
 }
 
-function flattenGroup( group, filter = () => true ) {
+function flattenGroup( group, meshFilter = () => true, groupFilter = () => true ) {
 
 	let ctx = {
 
@@ -1633,7 +1633,8 @@ function flattenGroup( group, filter = () => true ) {
 		indices: [],
 		materials: [],
 		taggedMaterials: {},
-		meshFilter: filter
+		meshFilter: meshFilter,
+		groupFilter: groupFilter,
 
 	};
 
@@ -1840,7 +1841,7 @@ class RWXMaterialTracker {
 		this.currentMaterialID = null;
 		this.currentMaterialList = [];
 		this.signatureMap = new Map();
-		this.commitedMaterialsAmount = 0;
+		this.committedMaterialsAmount = 0;
 		this.currentMaterialSignature = '';
 
 	}
@@ -1908,19 +1909,19 @@ class RWXMaterialTracker {
 		this.signatureMap.clear();
 		this.currentMaterialSignature = '';
 		this.currentRWXMaterial = currentMat;
-		this.commitedMaterialsAmount = 0;
+		this.committedMaterialsAmount = 0;
 
 	}
 
 	commitMaterials() {
 
-		this.commitedMaterialsAmount = this.currentMaterialList.length;
+		this.committedMaterialsAmount = this.currentMaterialList.length;
 
 	}
 
-	getCommitedMaterialList() {
+	getCommittedMaterialList() {
 
-		return this.currentMaterialList.slice( 0, this.commitedMaterialsAmount );
+		return this.currentMaterialList.slice( 0, this.committedMaterialsAmount );
 
 	}
 

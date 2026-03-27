@@ -3,8 +3,8 @@
  */
 
 import { LinearSRGBColorSpace, SRGBColorSpace, TextureLoader, Mesh, Group, Box3, Raycaster, Vector3, MeshPhongMaterial } from 'three';
-import RWXLoader, { RWXMaterial, RWXMaterialManager, RWXMaterialTracker, LightSampling, GeometrySampling,
-	TextureMode, MaterialMode, TextureAddressMode, scaleGroupName, firstClumpName } from './RWXLoader.js';
+import RWXLoader, { RWXMaterial, RWXMaterialManager, RWXMaterialTracker, LightSampling, GeometrySampling, TextureMode,
+	MaterialMode, TextureAddressMode, scaleGroupName, firstClumpName, flattenGroup } from './RWXLoader.js';
 import * as fflate from 'fflate';
 import { createServer } from 'http';
 import fs from 'fs';
@@ -350,13 +350,13 @@ describe( 'RWXLoader', () => {
 		assert.equal( mgr.getCurrentMaterialID(), 0 );
 		assert.equal( mgr.getCurrentMaterialList().length, 2 );
 
-		assert.equal( mgr.getCommitedMaterialList().length, 0 );
+		assert.equal( mgr.getCommittedMaterialList().length, 0 );
 		mgr.commitMaterials();
-		assert.equal( mgr.getCommitedMaterialList().length, 2 );
+		assert.equal( mgr.getCommittedMaterialList().length, 2 );
 
 		mgr.clearCurrentMaterialList();
 		assert.equal( mgr.currentMaterialList.length, 0 );
-		assert.equal( mgr.getCommitedMaterialList().length, 0 );
+		assert.equal( mgr.getCommittedMaterialList().length, 0 );
 
 	} );
 
@@ -588,6 +588,41 @@ describe( 'RWXLoader', () => {
 		assert.equal( yCasterRightCount, 2 );
 		assert.equal( zCasterLeftCount, 2 );
 		assert.equal( zCasterRightCount, 2 );
+
+	} );
+} );
+
+describe( 'flattenGroup', () => {
+
+	it( 'mesh filter', async () => {
+
+		const group = await loadTestCube( false );
+
+		// Trim away meshes with tagged naterial
+		const rwx = flattenGroup( group, ( mesh ) => !mesh.material[0] || !mesh.material[0].userData.rwx.material.tag);
+
+		assert.ok( rwx instanceof Mesh );
+		assert.equal( rwx.material.length, 6 );
+		assert.equal( rwx.geometry.getAttribute( 'position' ).count, 5 * 4 ); // 5 faces, 4 vertices each, plus 4 wasted polygon vertices
+		assert.equal( rwx.geometry.getAttribute( 'position' ).array.length, 5 * 4 * 3 ); // (X, Y, Z) for each vertex
+		assert.equal( rwx.geometry.getIndex().count, 5 * 2 * 3 ); // only 5 faces, 2 triangles per face, 3 vertex indices to make a triangle
+		assert.equal( rwx.geometry.getIndex().array.length, 5 * 2 * 3 ); // Same here
+
+	} );
+
+	it( 'group filter', async () => {
+
+		const group = await loadTestCube( false );
+
+		// Trim away groups with more than 4 direct children (5 or more)
+		const rwx = flattenGroup( group, () => true, ( group ) => group.children.length < 5);
+
+		assert.ok( rwx instanceof Mesh );
+		assert.equal( rwx.material.length, 1 );
+		assert.equal( rwx.geometry.getAttribute( 'position' ).count, 4 ); // 1 face, 4 vertices each, plus 4 wasted polygon vertices
+		assert.equal( rwx.geometry.getAttribute( 'position' ).array.length, 4 * 3 ); // (X, Y, Z) for each vertex
+		assert.equal( rwx.geometry.getIndex().count, 2 * 3 ); // only 1 face, 2 triangles per face, 3 vertex indices to make a triangle
+		assert.equal( rwx.geometry.getIndex().array.length, 2 * 3 ); // Same here
 
 	} );
 
